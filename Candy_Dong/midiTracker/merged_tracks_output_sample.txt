@@ -1,0 +1,41 @@
+<meta message time_signature numerator=4 denominator=4 clocks_per_click=24 notated_32nd_notes_per_beat=8 time=0>
+<meta message key_signature key='C' time=0>
+<meta message smpte_offset frame_rate=24 hours=33 minutes=0 seconds=0 frames=0 sub_frames=0 time=0>
+<meta message set_tempo tempo=500000 time=0>
+<meta message track_name name='Steinway Grand Piano' time=0>
+<meta message instrument_name name='Steinway Grand Piano' time=0>
+note_on channel=0 note=60 velocity=86 time=0
+<meta message track_name name='Steinway Grand Piano' time=0>
+<meta message instrument_name name='Steinway Grand Piano' time=0>
+note_on channel=0 note=48 velocity=87 time=0
+note_off channel=0 note=60 velocity=0 time=442
+note_on channel=0 note=50 velocity=107 time=7
+note_on channel=0 note=62 velocity=80 time=4
+note_off channel=0 note=48 velocity=0 time=11
+note_on channel=0 note=52 velocity=81 time=459
+note_off channel=0 note=50 velocity=0 time=16
+note_on channel=0 note=64 velocity=82 time=7
+note_off channel=0 note=62 velocity=0 time=26
+note_off channel=0 note=52 velocity=0 time=449
+note_off channel=0 note=64 velocity=0 time=1
+note_on channel=0 note=53 velocity=81 time=3
+note_on channel=0 note=65 velocity=85 time=17
+note_on channel=0 note=67 velocity=87 time=475
+note_on channel=0 note=55 velocity=87 time=2
+note_off channel=0 note=53 velocity=0 time=10
+note_off channel=0 note=65 velocity=0 time=8
+note_on channel=0 note=69 velocity=94 time=453
+note_on channel=0 note=57 velocity=86 time=0
+note_off channel=0 note=67 velocity=0 time=15
+note_off channel=0 note=55 velocity=0 time=19
+note_on channel=0 note=71 velocity=87 time=440
+note_on channel=0 note=59 velocity=85 time=6
+note_off channel=0 note=69 velocity=0 time=12
+note_off channel=0 note=57 velocity=0 time=23
+note_on channel=0 note=60 velocity=72 time=406
+note_on channel=0 note=72 velocity=94 time=20
+note_off channel=0 note=59 velocity=0 time=5
+note_off channel=0 note=71 velocity=0 time=24
+note_off channel=0 note=72 velocity=0 time=496
+note_off channel=0 note=60 velocity=0 time=132
+<meta message end_of_track time=0>
