@@ -1,27 +1,31 @@
 import os, sys
-from mido import MidiFile, merge_tracks
+import mido
 
 static_dir = "../static/"
 
-# stores note_on/note values in a list of timestamps from merged tracks
-def getNotes(merged_tracks):
-	notes = [] # each entry: (tick, note) if a note_on event occurs
-	global_tick = 0 # global tick starts at time 0
-	for msg in merged_tracks:
+# stores note_on/note values in a list of timestamps from a midiFile object
+def getNotes(f):
+	notes = [] # each entry: (time, note) if a note_on event occurs
+	global_time = 0 # global time starts at time 0
+	for msg in f:
 		# skip meta messages
-		if msg.is_meta:
-			continue
-		global_tick += msg.time
+		global_time += msg.time
 		if msg.type == "note_on":
-			notes.append((global_tick, msg.note))
+			notes.append((global_time, msg.note))
 	return notes
+
+# randomly slice merged_tracks and save as a new midi file 
+# for testing purpose
+def saveRandomMidiSlices(merged_tracks, save_path):
+
+	pass
 
 
 def main():
 	#clip the velocity of all notes to 127 if they are higher than that
 	#Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi
-	path = os.path.join(static_dir, "piano_test.mid")
-	f = MidiFile(path, clip=True)
+	path = os.path.join(static_dir, "Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi")
+	f = mido.MidiFile(path, clip=True)
 	print("midi file loaded at {}: {}\n".format(path, f))
 
 	'''
@@ -34,14 +38,21 @@ def main():
 	# 	print(track)
 	# 	for msg in track:
 	# 		print(" ", msg)
+	print("ticks per beat: {}, file type: {}".format(f.ticks_per_beat, f.type))
 
 	# print("merged tracks in playback order........................")
-	# # merge tracks in playback order
-	# for msg in merge_tracks(f.tracks):
+	# merge tracks in playback order
+	# for msg in mido.merge_tracks(f.tracks):
+	# 	if msg.is_meta:
+	# 		print(msg)
+
+	notes = getNotes(f)
+	print(notes)
+
+	print("time length: {}".format(f.length))
+	# for msg in f:
 	# 	print(msg)
 
-	notes = getNotes(merge_tracks(f.tracks))
-	print(notes)
 
 	# # remove the duplicate tracks (tracks with same number of messages)
 	# mes_num = set()
