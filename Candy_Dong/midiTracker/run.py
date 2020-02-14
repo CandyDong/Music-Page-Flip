@@ -44,18 +44,6 @@ def getNotesDFWithDeltaTick(f):
 	return df
 
 
-# create midi file from messages
-# the midi file only has one track which contains all the messages
-def createNewMidiFile(msgs, save_path):
-	print("...................creating new midi file at {}...............".format(save_path))
-	mid = mido.MidiFile()
-	track = mido.MidiTrack()
-	mid.tracks.append(track)
-	for msg in msgs:
-		track.append(msg)
-	mid.save(save_path)
-
-
 # randomly slice merged_tracks and save as a new midi file 
 # for testing purpose
 def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
@@ -65,7 +53,6 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 	for i,msg in enumerate(merged_tracks):
 		if msg.type == "time_signature":
 			meta_msg = msg
-
 
 	notes = getNotesWithDeltaTick(f)
 	num_notes = len(notes)
@@ -105,38 +92,96 @@ def createCSVFromDF(df, save_path, name):
 
 # get freq vector from an input midi sequence
 # stores the number of times a note occurs in the input sequence
-def getFreqVec(midi_vec):
-	# key = note, value = frequency
-	freqVec = defaultdict(int)
-	for (ind, note) in midi_vec:
-		if note in freqVec:
-			freqVec[note] += 1
-	return freqVec
-		
+def getFreqVec(notes):
+	# a total number of 128 digital keys on a keyboard
+	freq_vec = [0]*128
+	for (_, note, _, _) in notes:
+		freq_vec[int(note)] += 1
+	return freq_vec
+	
+# used to process the midi file
+# df defined in delta ticks
+# takes in size of sliding window as a parameter defined in number of midi notes
+def getFreqVecWithSlidingWindowFromDf(df, offset=0, size=15):
+	notes = df.values.tolist()
+
+	freq_info = dict()
+	for start in range(len(notes)):
+		if (start+size) > len(notes):
+			part = notes[start:]
+		else:
+			part = notes[start:start+size]
+		freq_vec = getFreqVec(part)
+		freq_info[start+offset] = freq_vec
+
+	return freq_info
+
+def getEuclideanDist(test_freq_vec, orig_freq_vec):
+	return np.linalg.norm(np.array(test_freq_vec)-np.array(orig_freq_vec), ord=2)
 
 # locate given midi slice in the original midi file
 # returns the index of the note in the original midi file's notes list
 def locateMidi(cur_notes, ori_note_path):
 	ori_note_df = pd.read_csv(ori_note_path)
-
 	pass
+
+def testFileMatching(test_dir, orig_notes_df):
+	for (dirpath, dirnames, filenames) in os.walk(test_dir):
+		for filename in filenames:
+			if filename.endswith('.mid'): 
+				test_midi_file_name = filename[:-4]
+				test_midi_file_path = os.path.join(test_dir, filename)
+				test_f = mido.MidiFile(test_midi_file_path)
+				print("........test midi file loaded at path {}............".\
+					format(test_midi_file_path))
+
+				test_notes_df = getNotesDFWithDeltaTick(test_f)
+				test_df_size = len(test_notes_df.index)
+				orig_freq_info = getFreqVecWithSlidingWindowFromDf(orig_notes_df, size=test_df_size)
+				test_freq_info = getFreqVecWithSlidingWindowFromDf(test_notes_df, \
+					offset=int(test_midi_file_name), size=test_df_size)
+				matchDFs(test_freq_info, orig_freq_info, test_df_size)
+
+def matchDFs(test_freq_info, orig_freq_info, test_df_size):
+	for test_start, test_freq_vec in test_freq_info.items():
+		minDist = None
+		minDistStart = None
+		for orig_start, orig_freq_vec in orig_freq_info.items():
+			dist = getEuclideanDist(test_freq_vec, orig_freq_vec)
+			# print(".........test: {}, original: {}, distance: {}...........".\
+			# 	format(test_start, orig_start, dist))
+			if ((minDist == None) or (dist <= minDist)):
+				if dist == minDist:
+					minDistStart.append(orig_start)
+					continue
+				minDist = dist
+				minDistStart = [orig_start] 
+		print("......testing midi sequence starting at {} matched at {} \
+			with distance {}.......".\
+			format(test_start-test_df_size, minDistStart, minDist))
+		break
+
 
 def main():
 	#Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi
 	midi_file_name = "Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major"
-	midi_file_path = os.path.join(static_dir, midi_file_name+".midi")
+	midi_file_path = os.path.join(static_dir, midi_file_name + ".midi")
 	f = mido.MidiFile(midi_file_path)
+	orig_notes_df = getNotesDFWithDeltaTick(f)
+
+	print("........original midi file loaded at path {}............".format(midi_file_path))
+	
 	
 	sample_save_path = os.path.join(static_dir, midi_file_name)
 	if not os.path.exists(sample_save_path):
 		os.makedirs(sample_save_path)
 
-	notes_tick_df = getNotesDFWithDeltaTick(f)
-	createCSVFromDF(notes_tick_df, sample_save_path, "notes_delta_tick.csv")
+	# createCSVFromDF(notes_tick_df, sample_save_path, "notes_delta_tick.csv")
 
-	createAndSaveRandomMidiSlices(f, sample_save_path)
-	
-	
+	# createAndSaveRandomMidiSlices(f, sample_save_path)
+
+	testFileMatching(sample_save_path, orig_notes_df)
+
 
 if __name__ == "__main__":
 	main()
