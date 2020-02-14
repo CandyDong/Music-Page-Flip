@@ -62,15 +62,18 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 	random.seed(0)
 	# randomly sample split points from the generated population
 	split_inds = random.sample(avail_inds, num_split)
+	split_inds = [-1] + split_inds
+	split_inds.sort()
 
 	mid = mido.MidiFile()
 	track = mido.MidiTrack()
 	mid.tracks.append(track)
 	track.append(meta_msg)
 	for i, (msg_type, msg_note, msg_velocity, msg_time) in enumerate(notes):
-		if i in split_inds:
+		if (i != -1) and (i in split_inds):
 			# create a new file using the messages
-			mid_save_path = os.path.join(save_path, "{}.mid".format(i))
+			mid_save_path = os.path.join(save_path, "{}_{}.mid".\
+				format(split_inds[split_inds.index(i)-1]+1,i))
 			mid.save(mid_save_path)
 
 			# reset new midi file
@@ -132,14 +135,20 @@ def testFileMatching(test_dir, orig_notes_df):
 				test_midi_file_name = filename[:-4]
 				test_midi_file_path = os.path.join(test_dir, filename)
 				test_f = mido.MidiFile(test_midi_file_path)
-				print("........test midi file loaded at path {}............".\
-					format(test_midi_file_path))
+
+				# print("........test midi file loaded at path {}............".\
+				# 	format(test_midi_file_path))
+
+				hypen = filename.find("_")
+				test_start = int(filename[:hypen])
+				test_end = int(filename[hypen+1:-4])
 
 				test_notes_df = getNotesDFWithDeltaTick(test_f)
 				test_df_size = len(test_notes_df.index)
+
 				orig_freq_info = getFreqVecWithSlidingWindowFromDf(orig_notes_df, size=test_df_size)
 				test_freq_info = getFreqVecWithSlidingWindowFromDf(test_notes_df, \
-					offset=int(test_midi_file_name), size=test_df_size)
+					offset=test_start, size=test_df_size)
 				matchDFs(test_freq_info, orig_freq_info, test_df_size)
 
 def matchDFs(test_freq_info, orig_freq_info, test_df_size):
@@ -156,9 +165,9 @@ def matchDFs(test_freq_info, orig_freq_info, test_df_size):
 					continue
 				minDist = dist
 				minDistStart = [orig_start] 
-		print("......testing midi sequence starting at {} matched at {} \
+		print("......testing midi sequence with size {} starting at {} matched at {} \
 			with distance {}.......".\
-			format(test_start-test_df_size, minDistStart, minDist))
+			format(test_df_size, test_start, minDistStart, minDist))
 		break
 
 
