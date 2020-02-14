@@ -1,6 +1,8 @@
 import os, sys
 import mido
 import random
+import pandas as pd
+import numpy as np
 
 static_dir = "../static/"
 
@@ -85,10 +87,10 @@ def main():
 
 	saveRandomMidiSlices(f, sample_save_path)
 
-	# notes = getNotes(f)
-	# note_save_path = os.path.join(sample_save_path, "notes.txt")
-	# with open(note_save_path, "w") as f:
-	# 	f.write(str(notes))
+	notes = getNotes(f)
+	note_save_path = os.path.join(sample_save_path, "notes.csv")
+	df = pd.DataFrame(np.array(notes), columns=['Time', 'Note'])
+	df.to_csv(note_save_path)
 
 
 if __name__ == "__main__":
