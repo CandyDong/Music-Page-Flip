@@ -3,11 +3,12 @@ import mido
 import random
 import pandas as pd
 import numpy as np
+from collections import defaultdict
 
 static_dir = "../static/"
 
 # stores note_on/note values in a list of timestamps from a midiFile object
-def getNotes(f):
+def getNotesWithGlobalTime(f):
 	notes = [] # each entry: (time, note) if a note_on event occurs
 	global_time = 0 # global time starts at time 0
 	for msg in f:
@@ -16,82 +17,126 @@ def getNotes(f):
 			notes.append((global_time, msg.note))
 	return notes
 
-# check if all messages are meta messages
-def isAllMeta(track):
-	for msg in track:
-		if not msg.is_meta:
-			return False
-	return True
+
+# return a pandas dataframe saving note along with time in seconds
+def getNotesDFWithGlobalTime(f):
+	#clip the velocity of all notes to 127 if they are higher than that
+	notes = getNotesWithGlobalTime(f)
+	df = pd.DataFrame(np.array(notes), columns=['Time', 'Note'])
+	return df
+
+
+# stores midi note info in a list
+def getNotesWithDeltaTick(f):
+	notes = []
+	merged_tracks = mido.merge_tracks(f.tracks)
+	for i,msg in enumerate(merged_tracks):
+		if msg.is_meta:
+			continue
+		if msg.type == "note_on":
+			notes.append((msg.type, msg.note, msg.velocity, msg.time))
+	return notes
+
+
+def getNotesDFWithDeltaTick(f):
+	notes = getNotesWithDeltaTick(f)
+	df = pd.DataFrame(np.array(notes), columns=['Type', 'Note', 'Velocity', 'Time'])
+	return df
+
 
 # create midi file from messages
 # the midi file only has one track which contains all the messages
-def createNewFile(msgs, save_path):
-	print("creating new midi file at {}".format(save_path))
+def createNewMidiFile(msgs, save_path):
+	print("...................creating new midi file at {}...............".format(save_path))
 	mid = mido.MidiFile()
 	track = mido.MidiTrack()
 	mid.tracks.append(track)
 	for msg in msgs:
-		print(msg)
 		track.append(msg)
 	mid.save(save_path)
 
+
 # randomly slice merged_tracks and save as a new midi file 
 # for testing purpose
-def saveRandomMidiSlices(f, save_path, num_split=10):
-	global_time = 0
+def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
+	# get time signature message
+	meta_msg = mido.MetaMessage("time_signature", numerator=4, denominator=4) #default meta message
 	merged_tracks = mido.merge_tracks(f.tracks)
-	meta_track_inds = []
 	for i,msg in enumerate(merged_tracks):
-		if msg.is_meta:
-			meta_track_inds.append(i)
+		if msg.type == "time_signature":
+			meta_msg = msg
 
-	num_msg = len(merged_tracks)
+
+	notes = getNotesWithDeltaTick(f)
+	num_notes = len(notes)
 	# generate population without indices of meta tracks 
-	avail_inds = list(filter(lambda i: i not in meta_track_inds, list(range(num_msg))))
-	avail_inds.sort() 
+	avail_inds = list(range(num_notes))
 
+	random.seed(0)
 	# randomly sample split points from the generated population
 	split_inds = random.sample(avail_inds, num_split)
 
-	with open(os.path.join(save_path, "split_inds.txt"), "w") as f:
-		f.write(str(split_inds))
-
-	new_msgs = []
-	for i, msg in enumerate(merged_tracks):
+	mid = mido.MidiFile()
+	track = mido.MidiTrack()
+	mid.tracks.append(track)
+	track.append(meta_msg)
+	for i, (msg_type, msg_note, msg_velocity, msg_time) in enumerate(notes):
 		if i in split_inds:
-			if not isAllMeta(new_msgs):
-				# create a new file using the messages
-				createNewFile(new_msgs, os.path.join(save_path, "{}.mid".format(i)))
-				new_msgs = [] # reset new msgs
-				continue
-		new_msgs.append(msg)
+			# create a new file using the messages
+			mid_save_path = os.path.join(save_path, "{}.mid".format(i))
+			mid.save(mid_save_path)
 
+			# reset new midi file
+			mid = mido.MidiFile()
+			track = mido.MidiTrack()
+			mid.tracks.append(track)
+			track.append(meta_msg)
+			continue
+
+		track.append(mido.Message(msg_type, note=msg_note, velocity=msg_velocity, time=msg_time))
+
+
+# save the panda dataframe of notes as a csv at notes.csv
+# save path only specifies the directory to save
+def createCSVFromDF(df, save_path, name):
+	csv_path = os.path.join(save_path, name)
+	df.to_csv(csv_path)
+
+
+# get freq vector from an input midi sequence
+# stores the number of times a note occurs in the input sequence
+def getFreqVec(midi_vec):
+	# key = note, value = frequency
+	freqVec = defaultdict(int)
+	for (ind, note) in midi_vec:
+		if note in freqVec:
+			freqVec[note] += 1
+	return freqVec
+		
+
+# locate given midi slice in the original midi file
+# returns the index of the note in the original midi file's notes list
+def locateMidi(cur_notes, ori_note_path):
+	ori_note_df = pd.read_csv(ori_note_path)
+
+	pass
 
 def main():
-	#clip the velocity of all notes to 127 if they are higher than that
 	#Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi
 	midi_file_name = "Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major"
-	path = os.path.join(static_dir, midi_file_name+".midi")
-	f = mido.MidiFile(path, clip=True)
-	print("midi file loaded at {}: {}\n".format(path, f))
-
-	'''
-	type 0 (single track): all messages are saved in one track
-	type 1 (synchronous): all tracks start at the same time
-	type 2 (asynchronous): each track is independent of the others
-	delta time: how many ticks have passed since the last message
-	'''
+	midi_file_path = os.path.join(static_dir, midi_file_name+".midi")
+	f = mido.MidiFile(midi_file_path)
+	
 	sample_save_path = os.path.join(static_dir, midi_file_name)
 	if not os.path.exists(sample_save_path):
 		os.makedirs(sample_save_path)
 
-	saveRandomMidiSlices(f, sample_save_path)
+	notes_tick_df = getNotesDFWithDeltaTick(f)
+	createCSVFromDF(notes_tick_df, sample_save_path, "notes_delta_tick.csv")
 
-	notes = getNotes(f)
-	note_save_path = os.path.join(sample_save_path, "notes.csv")
-	df = pd.DataFrame(np.array(notes), columns=['Time', 'Note'])
-	df.to_csv(note_save_path)
-
+	createAndSaveRandomMidiSlices(f, sample_save_path)
+	
+	
 
 if __name__ == "__main__":
 	main()
