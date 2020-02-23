@@ -4,6 +4,7 @@ import random
 import pandas as pd
 import numpy as np
 from collections import defaultdict
+import glob
 
 static_dir = "../static/"
 
@@ -75,6 +76,7 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 			mid_save_path = os.path.join(save_path, "{}_{}.mid".\
 				format(split_inds[split_inds.index(i)-1]+1,i))
 			mid.save(mid_save_path)
+			print(".........saved file at {} ...............".format(mid_save_path))
 
 			# reset new midi file
 			mid = mido.MidiFile()
@@ -84,6 +86,62 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 			continue
 
 		track.append(mido.Message(msg_type, note=msg_note, velocity=msg_velocity, time=msg_time))
+
+def generateRandNumInRange(low, high, percentage):
+	size = high - low
+	count = int(size*percentage/100)
+
+	return random.sample(list(range(low, high)), count)
+
+# loop through all slices in f_dir
+# create midi slices with randomly notes being deleted from the original slice
+def deleteRandomNotes(f_dir, save_path, percentage=10):
+	# get time signature message
+	for filename in os.listdir(f_dir):
+		if not (filename.endswith(".mid") or filename.endswith(".midi")):
+			continue
+
+		f_path = os.path.join(f_dir, filename)
+		f = mido.MidiFile(f_path)
+		merged_tracks = mido.merge_tracks(f.tracks)
+
+		meta_msg = mido.MetaMessage("time_signature", numerator=4, denominator=4) #default meta message
+		for i,msg in enumerate(merged_tracks):
+			if msg.type == "time_signature":
+				meta_msg = msg
+
+		notes = getNotesWithDeltaTick(f)
+		num_notes = len(notes)
+		avail_inds = list(range(num_notes))
+
+		del_indices = generateRandNumInRange(0, num_notes, percentage)
+		del_indices.sort()
+
+		# create new midi file to save the generated slice
+		mid = mido.MidiFile()
+		track = mido.MidiTrack()
+		mid.tracks.append(track)
+		track.append(meta_msg)
+		tick = None
+		for i, (msg_type, msg_note, msg_velocity, msg_time) in enumerate(notes):
+			if i in del_indices:
+				# create a new file using the messages
+				tick = msg_time
+				continue
+
+			if tick:
+				track.append(mido.Message(msg_type, note=msg_note, velocity=msg_velocity, time=msg_time+tick))
+			else:
+				track.append(mido.Message(msg_type, note=msg_note, velocity=msg_velocity, time=msg_time))
+			tick = None
+
+		mid_save_path = os.path.join(save_path, str(percentage))
+		if not os.path.exists(mid_save_path):
+			os.makedirs(mid_save_path)
+		mid.save(os.path.join(mid_save_path, filename))
+		print(".........saved file at {} ...............".format(os.path.join(mid_save_path, filename)))
+			
+
 
 
 # save the panda dataframe of notes as a csv at notes.csv
@@ -186,10 +244,19 @@ def main():
 		os.makedirs(sample_save_path)
 
 	# createCSVFromDF(notes_tick_df, sample_save_path, "notes_delta_tick.csv")
+	orig_sample_save_path = os.path.join(sample_save_path, "0")
+	if not os.path.exists(orig_sample_save_path):
+		os.makedirs(orig_sample_save_path)
+	createAndSaveRandomMidiSlices(f, orig_sample_save_path)
 
-	# createAndSaveRandomMidiSlices(f, sample_save_path)
+	# version 2 midi matching
+	
+	percentages = [5, 10, 15, 20, 25, 30, 25, 40, 45, 50, 55, 60]
+	for p in percentages:
+		deleteRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
 
-	testFileMatching(sample_save_path, orig_notes_df)
+	for p in percentages:
+		testFileMatching(os.path.join(sample_save_path, str(p)), orig_notes_df)
 
 
 if __name__ == "__main__":
