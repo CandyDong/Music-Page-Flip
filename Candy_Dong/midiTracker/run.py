@@ -6,6 +6,7 @@ import numpy as np
 from collections import defaultdict
 import math
 import csv
+import Levenshtein
 
 static_dir = "../static/"
 
@@ -175,10 +176,13 @@ def createCSVFromDF(df, save_path, name):
 # get freq vector from an input midi sequence
 # stores the number of times a note occurs in the input sequence
 def getFreqVec(notes):
-	# a total number of 128 digital keys on a keyboard
+	# a total number of 128 pitch values on a keyboard
+	# normalization: divide by the total number of notes
 	freq_vec = [0]*128
+	total_num = len(notes)
 	for (_, note, _, _) in notes:
-		freq_vec[int(note)] += 1
+		freq_vec[int(note)] += (1/total_num)
+
 	return freq_vec
 	
 
@@ -300,7 +304,7 @@ def main():
 	
 	for p in percentages:
 		result = testFileMatching(os.path.join(sample_save_path, str(p)), orig_notes_df)
-		f_result_name = "match_results_{}.csv".format(p)
+		f_result_name = "match_results_{}_normalized.csv".format(p)
 		with open(os.path.join(sample_save_path, str(p), f_result_name), "w") as f_result:
 			writer = csv.DictWriter(f_result, fieldnames=list(result[0].keys()))
 			writer.writeheader()
