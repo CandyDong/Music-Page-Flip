@@ -12,6 +12,26 @@ static_dir = "../static/"
 
 DEBUG = True
 
+def generateRandNumInRange(low, high, percentage):
+	size = high - low
+	count = int(size*percentage/100)
+	random.seed(0)
+	return random.sample(list(range(low, high)), count)
+
+
+# returns the first message that sets the time signature of the file
+# and return the default time signature message if none exists in the original file
+def getTimeSignature(f):
+	# get time signature message
+	meta_msg = mido.MetaMessage("time_signature", numerator=4, denominator=4) #default meta message
+	merged_tracks = mido.merge_tracks(f.tracks)
+	for i,msg in enumerate(merged_tracks):
+		if msg.type == "time_signature":
+			meta_msg = msg
+			break
+	return meta_msg
+
+
 # stores note_on/note values in a list of timestamps from a midiFile object
 def getNotesWithGlobalTime(f):
 	notes = [] # each entry: (time, note) if a note_on event occurs
@@ -49,17 +69,7 @@ def getNotesDFWithDeltaTick(f):
 	return df
 
 
-# randomly slice merged_tracks and save as a new midi file 
-# for testing purpose
-def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
-	# get time signature message
-	meta_msg = mido.MetaMessage("time_signature", numerator=4, denominator=4) #default meta message
-	merged_tracks = mido.merge_tracks(f.tracks)
-	for i,msg in enumerate(merged_tracks):
-		if msg.type == "time_signature":
-			meta_msg = msg
-			break
-
+def getRandomSplitInds(f, num_split=10):
 	notes = getNotesWithDeltaTick(f)
 	num_notes = len(notes)
 	# generate population without indices of meta tracks 
@@ -71,12 +81,46 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 	split_inds = [-1] + split_inds
 	split_inds.sort()
 
+	return split_inds
+
+
+def getFixedIntervalSplitInds(f, len_split=5):
+	if (len_split <= 0):
+		raise Exception("Split interval too small!")
+
+	# generate population without indices of meta tracks 
+	# split interval determined by len
+	notes = getNotesWithDeltaTick(f)
+	num_notes = len(notes)
+	split_inds = list(range(0, num_notes, len_split))
+	split_inds = [-1] + split_inds
+
+	return split_inds
+
+
+# randomly slice merged_tracks and save as a new midi file 
+# for testing purpose
+# if num_split is provided -> random split
+# if len_split is provided -> fixed interval split
+def createAndSaveMidiSlices(f, save_path, num_split=None, len_split=None):
+	# get time signature message
+	meta_msg = getTimeSignature(f)
+
+	notes = getNotesWithDeltaTick(f)
+
+	assert((num_split != None) or (len_split != None))
+
+	if (num_split):
+		split_inds = getRandomSplitInds(f, num_split)
+	else:
+		split_inds = getFixedIntervalSplitInds(f, len_split)
+
 	mid = mido.MidiFile()
 	track = mido.MidiTrack()
 	mid.tracks.append(track)
 	track.append(meta_msg)
 	for i, (msg_type, msg_note, msg_velocity, msg_time) in enumerate(notes):
-		if (i != -1) and (i in split_inds):
+		if (i != -1) and (i != 0) and (i in split_inds):
 			# create a new file using the messages
 			mid_save_path = os.path.join(save_path, "{}_{}.mid".\
 				format(split_inds[split_inds.index(i)-1]+1,i))
@@ -88,16 +132,9 @@ def createAndSaveRandomMidiSlices(f, save_path, num_split=10):
 			track = mido.MidiTrack()
 			mid.tracks.append(track)
 			track.append(meta_msg)
-			continue
+			
 
 		track.append(mido.Message(msg_type, note=msg_note, velocity=msg_velocity, time=msg_time))
-
-
-def generateRandNumInRange(low, high, percentage):
-	size = high - low
-	count = int(size*percentage/100)
-	random.seed(0)
-	return random.sample(list(range(low, high)), count)
 
 
 # loop through all slices in f_dir
@@ -110,13 +147,9 @@ def deleteRandomNotes(f_dir, save_path, percentage=10):
 
 		f_path = os.path.join(f_dir, filename)
 		f = mido.MidiFile(f_path)
-		merged_tracks = mido.merge_tracks(f.tracks)
 
-		meta_msg = mido.MetaMessage("time_signature", numerator=4, denominator=4) #default meta message
-		for i,msg in enumerate(merged_tracks):
-			if msg.type == "time_signature":
-				meta_msg = msg
-				break
+		# get time signature message
+		meta_msg = getTimeSignature(f)
 
 		notes = getNotesWithDeltaTick(f)
 		num_notes = len(notes)
@@ -208,13 +241,6 @@ def getEuclideanDist(test_freq_vec, orig_freq_vec):
 	return np.linalg.norm(np.array(test_freq_vec)-np.array(orig_freq_vec), ord=2)
 
 
-# locate given midi slice in the original midi file
-# returns the index of the note in the original midi file's notes list
-def locateMidi(cur_notes, ori_note_path):
-	ori_note_df = pd.read_csv(ori_note_path)
-	pass
-
-
 def testFileMatching(test_dir, orig_notes_df):
 	for (dirpath, dirnames, filenames) in os.walk(test_dir):
 		result = []
@@ -247,7 +273,6 @@ def testFileMatching(test_dir, orig_notes_df):
 			test_start, minDistStart, minDist = matchDFs(test_freq_info, orig_freq_info, test_df_size)
 
 			orig_dist = getEuclideanDist(test_freq_info[test_start], orig_freq_info[test_start])
-			row["start"] = test_start
 			row["matched_start"] = minDistStart
 			row["distance"] = minDist
 			row["answer_distance"] = orig_dist
@@ -276,30 +301,31 @@ def matchDFs(test_freq_info, orig_freq_info, test_df_size):
 
 def main():
 	#Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi
-	midi_file_name = "Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major"
+	midi_file_name = "Mariage_dAmour"
 	midi_file_path = os.path.join(static_dir, midi_file_name + ".midi")
-	f = mido.MidiFile(midi_file_path)
-	orig_notes_df = getNotesDFWithDeltaTick(f)
-
-	print("........original midi file loaded at path {}............".format(midi_file_path))
-	
-	
 	sample_save_path = os.path.join(static_dir, midi_file_name)
 	if not os.path.exists(sample_save_path):
 		os.makedirs(sample_save_path)
 
-	# createCSVFromDF(notes_tick_df, sample_save_path, "notes_delta_tick.csv")
+	print("........master midi file loaded at path {}............".format(midi_file_path))
+
+	f = mido.MidiFile(midi_file_path)
+	orig_notes_df = getNotesDFWithDeltaTick(f)
+	# time saved means "tick" here
+	createCSVFromDF(orig_notes_df, sample_save_path, "notes_delta_tick.csv")
+
 	orig_sample_save_path = os.path.join(sample_save_path, "0")
 	if not os.path.exists(orig_sample_save_path):
 		os.makedirs(orig_sample_save_path)
-	# createAndSaveRandomMidiSlices(f, orig_sample_save_path)
+
+	# split the master midi file accordingly and then save them in different folders
+	createAndSaveMidiSlices(f, orig_sample_save_path, len_split=30)
 
 	# version 2 midi matching
-	
-	percentages = [0, 5, 10, 15, 20, 25, 30, 25, 40, 45, 50, 55, 60]
-	# for p in percentages[1:]:
-	# 	# arguments: (1) dir of original sample files (2) path to save generated midi files
-	# 	deleteRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
+	percentages = [0, 5, 10, 20, 30, 40, 50]
+	for p in percentages[1:]:
+		# arguments: (1) dir of original sample files (2) path to save generated midi files
+		deleteRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
 
 	
 	for p in percentages:
