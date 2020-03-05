@@ -864,37 +864,37 @@ if __name__ == "__main__":
         box_thickness = 2
 
         # ------- Find primitives on staff -------
-        print("[INFO] Matching sharp accidental template...")
-        sharp_boxes = locate_templates(staff_img, sharp_imgs, sharp_lower, sharp_upper, sharp_thresh)
-        sharp_boxes = merge_boxes([j for i in sharp_boxes for j in i], 0.5)
+        # print("[INFO] Matching sharp accidental template...")
+        # sharp_boxes = locate_templates(staff_img, sharp_imgs, sharp_lower, sharp_upper, sharp_thresh)
+        # sharp_boxes = merge_boxes([j for i in sharp_boxes for j in i], 0.5)
 
-        print("[INFO] Displaying Matching Results on staff", i + 1)
-        for box in sharp_boxes:
-            box.draw(staff_img_color, red, box_thickness)
-            text = "sharp"
-            font = cv2.FONT_HERSHEY_DUPLEX
-            textsize = cv2.getTextSize(text, font, fontScale=0.7, thickness=1)[0]
-            x = int(box.getCorner()[0] - (textsize[0] // 2))
-            y = int(box.getCorner()[1] + box.getHeight() + 20)
-            cv2.putText(staff_img_color, text, (x, y), font, fontScale=0.7, color=red, thickness=1)
-            sharp = Primitive("sharp", 0, box)
-            staff_primitives.append(sharp)
+        # print("[INFO] Displaying Matching Results on staff", i + 1)
+        # for box in sharp_boxes:
+        #     box.draw(staff_img_color, red, box_thickness)
+        #     text = "sharp"
+        #     font = cv2.FONT_HERSHEY_DUPLEX
+        #     textsize = cv2.getTextSize(text, font, fontScale=0.7, thickness=1)[0]
+        #     x = int(box.getCorner()[0] - (textsize[0] // 2))
+        #     y = int(box.getCorner()[1] + box.getHeight() + 20)
+        #     cv2.putText(staff_img_color, text, (x, y), font, fontScale=0.7, color=red, thickness=1)
+        #     sharp = Primitive("sharp", 0, box)
+        #     staff_primitives.append(sharp)
 
-        print("[INFO] Matching flat accidental template...")
-        flat_boxes = locate_templates(staff_img, flat_imgs, flat_lower, flat_upper, flat_thresh)
-        flat_boxes = merge_boxes([j for i in flat_boxes for j in i], 0.5)
+        # print("[INFO] Matching flat accidental template...")
+        # flat_boxes = locate_templates(staff_img, flat_imgs, flat_lower, flat_upper, flat_thresh)
+        # flat_boxes = merge_boxes([j for i in flat_boxes for j in i], 0.5)
 
-        print("[INFO] Displaying Matching Results on staff", i + 1)
-        for box in flat_boxes:
-            box.draw(staff_img_color, red, box_thickness)
-            text = "flat"
-            font = cv2.FONT_HERSHEY_DUPLEX
-            textsize = cv2.getTextSize(text, font, fontScale=0.7, thickness=1)[0]
-            x = int(box.getCorner()[0] - (textsize[0] // 2))
-            y = int(box.getCorner()[1] + box.getHeight() + 20)
-            cv2.putText(staff_img_color, text, (x, y), font, fontScale=0.7, color=red, thickness=1)
-            flat = Primitive("flat", 0, box)
-            staff_primitives.append(flat)
+        # print("[INFO] Displaying Matching Results on staff", i + 1)
+        # for box in flat_boxes:
+        #     box.draw(staff_img_color, red, box_thickness)
+        #     text = "flat"
+        #     font = cv2.FONT_HERSHEY_DUPLEX
+        #     textsize = cv2.getTextSize(text, font, fontScale=0.7, thickness=1)[0]
+        #     x = int(box.getCorner()[0] - (textsize[0] // 2))
+        #     y = int(box.getCorner()[1] + box.getHeight() + 20)
+        #     cv2.putText(staff_img_color, text, (x, y), font, fontScale=0.7, color=red, thickness=1)
+        #     flat = Primitive("flat", 0, box)
+        #     staff_primitives.append(flat)
 
         print("[INFO] Matching quarter note template...")
         quarter_boxes = locate_templates(staff_img, quarter_note_imgs, quarter_note_lower, quarter_note_upper, quarter_note_thresh)
