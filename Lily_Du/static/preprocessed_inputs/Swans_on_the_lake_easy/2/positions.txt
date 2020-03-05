@@ -1,0 +1,71 @@
+note,233,124
+note,128,131
+note,23,138
+note,357,138
+note,462,131
+note,566,124
+note,690,131
+note,795,138
+note,900,145
+note,1024,131
+note,1128,138
+note,1233,145
+end 1
+note,24,79
+note,358,79
+note,691,107
+note,1025,93
+end 2
+note,240,123
+note,132,130
+note,24,137
+note,367,137
+note,474,130
+note,582,123
+note,709,130
+note,816,137
+note,924,144
+note,1051,135
+end 3
+note,923,95
+note,24,79
+note,367,79
+note,709,107
+note,1051,79
+end 4
+note,128,117
+note,233,124
+note,357,131
+note,462,117
+note,566,124
+note,690,131
+note,795,117
+note,900,124
+note,1024,131
+note,1128,138
+note,1234,145
+note,23,131
+end 5
+note,358,79
+note,691,107
+note,1025,79
+note,24,107
+end 6
+note,579,116
+note,471,130
+note,364,144
+note,704,137
+note,812,130
+note,919,137
+note,24,135
+note,1045,143
+end 7
+note,130,82
+note,238,89
+note,23,89
+note,703,89
+note,811,82
+note,918,89
+note,365,92
+note,1045,92
+end 8
