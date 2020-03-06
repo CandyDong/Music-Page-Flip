@@ -158,7 +158,7 @@ def run(input_device, orig_vecs):
 def main():
 
     ############prepare midi file#####################
-    midi_file_name = "Mariage_dAmour"
+    midi_file_name = "Swans_on_the_lake_easy"
     midi_file_path = os.path.join(static_dir, midi_file_name + ".midi")
     f = mido.MidiFile(midi_file_path)
     orig_notes = getNotes(f)
