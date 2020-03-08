@@ -99,15 +99,15 @@ def getRandomSplitInds(f, num_split=10):
 	return split_inds
 
 
-def getFixedIntervalSplitInds(f, len_split=5):
-	if (len_split <= 0):
+def getFixedIntervalSplitInds(f, window=5):
+	if (window <= 0):
 		raise Exception("Split interval too small!")
 
 	# generate population without indices of meta tracks 
 	# split interval determined by len
 	notes = getNotesWithDeltaTick(f)
 	num_notes = len(notes)
-	split_inds = list(range(0, num_notes, len_split))
+	split_inds = list(range(0, num_notes, window))
 
 	return split_inds
 
@@ -404,7 +404,7 @@ def main():
 		os.makedirs(orig_sample_save_path)
 
 	# split the master midi file accordingly and then save them in different folders
-	createAndSaveMidiSlices(f, orig_sample_save_path, len_split=30)
+	createAndSaveMidiSlices(f, orig_sample_save_path, window=30)
 
 	# version 2 midi matching
 	for p in percentages[1:]:
