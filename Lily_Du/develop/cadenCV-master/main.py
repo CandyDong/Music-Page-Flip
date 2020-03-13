@@ -534,7 +534,7 @@ def find_staffline_rows(img, line_width, line_spacing):
 
     all_staff_row_indices = []
     num_stafflines = 5
-    threshold = 0.06
+    threshold = 0.075
     staff_length = num_stafflines * (line_width + line_spacing) - line_spacing
     iter_range = num_rows - staff_length + 1
 
