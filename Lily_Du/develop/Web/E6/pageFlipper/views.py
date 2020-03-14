@@ -10,8 +10,8 @@ from django.contrib.auth import authenticate, login, logout
 
 from django.utils import timezone
 
-from socialnetwork.forms import LoginForm, RegistrationForm 
-from socialnetwork.models import Profile, Posts
+from pageFlipper.forms import LoginForm, RegistrationForm 
+from pageFlipper.models import Profile, Score, RPI
 
 from django.db import transaction
 from django.utils import timezone
@@ -22,7 +22,7 @@ def login_action(request):
     # Just display the registration form if this is a GET request.
     if request.method == 'GET':
         context['form'] = LoginForm()
-        return render(request, 'socialnetwork/login.html', context)
+        return render(request, 'pageFlipper/login.html', context)
 
     # Creates a bound form from the request POST parameters and makes the 
     # form available in the request context dictionary.
@@ -31,13 +31,13 @@ def login_action(request):
 
     # Validates the form.
     if not form.is_valid():
-        return render(request, 'socialnetwork/login.html', context)
+        return render(request, 'pageFlipper/login.html', context)
 
     new_user = authenticate(username=form.cleaned_data['username'],
                             password=form.cleaned_data['password'])
 
     login(request, new_user)
-    return redirect(reverse('global_stream'))
+    return redirect(reverse('homepage'))
 
 def logout_action(request):
     logout(request)
@@ -49,7 +49,7 @@ def register_action(request):
     # Just display the registration form if this is a GET request.
     if request.method == 'GET':
         context['form'] = RegistrationForm()
-        return render(request, 'socialnetwork/register.html', context)
+        return render(request, 'pageFlipper/register.html', context)
 
     # Creates a bound form from the request POST parameters and makes the 
     # form available in the request context dictionary.
@@ -58,14 +58,11 @@ def register_action(request):
 
     # Validates the form.
     if not form.is_valid():
-        return render(request, 'socialnetwork/register.html', context)
+        return render(request, 'pageFlipper/register.html', context)
 
     # At this point, the form data is valid.  Register and login the user.
     new_user = User.objects.create_user(username=form.cleaned_data['username'], 
-                                        password=form.cleaned_data['password'],
-                                        email=form.cleaned_data['email'],
-                                        first_name=form.cleaned_data['first_name'],
-                                        last_name=form.cleaned_data['last_name'])
+                                        password=form.cleaned_data['password'])
     new_user.save()
     Profile.objects.create(user=new_user)
 
@@ -73,4 +70,12 @@ def register_action(request):
                             password=form.cleaned_data['password'])
 
     login(request, new_user)
-    return redirect(reverse('global_stream'))
+    return redirect(reverse('homepage'))
+
+def homepage(request):
+    context = {}
+    return render(request, 'pageFlipper/homepage.html', context)
+
+def profile(request):
+    context = {}
+    return render(request, 'pageFlipper/profile.html', context)

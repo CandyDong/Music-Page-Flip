@@ -7,8 +7,10 @@ from django.contrib.auth import authenticate
 MAX_UPLOAD_SIZE = 2500000
 
 class LoginForm(forms.Form):
-    username = forms.CharField(max_length = 20)
-    password = forms.CharField(max_length = 200, widget = forms.PasswordInput())
+    username = forms.CharField(max_length = 20, widget=forms.TextInput(
+        attrs={'class': 'form-control', 'placeholder': 'Username', 'id': 'username'}))
+    password = forms.CharField(max_length = 200, widget = forms.PasswordInput(
+        attrs={'class': 'form-control', 'placeholder': 'Password', 'id': 'password'}))
 
     # Customizes form validation for properties that apply to more
     # than one field.  Overrides the forms.Form.clean function.
