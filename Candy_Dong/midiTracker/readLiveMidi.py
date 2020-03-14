@@ -8,53 +8,105 @@ import math
 
 import mido
 
+from fractions import Fraction
+
 static_dir = "../static/"
-WINDOW = 30
+WINDOW = 10
 
 ###############Matching Utils####################
-def getEuclideanDist(test_freq_vec, orig_freq_vec):
-    return np.linalg.norm(np.array(test_freq_vec)-np.array(orig_freq_vec), ord=2)
+# get measure information 
+# use global tick instead of delta tick
+# returns a dictionary that stores (tick, measure) as key pairs
+# save in a csv file
+def getTickMeasureDict(f):
+    ticks_per_beat = f.ticks_per_beat #TODO:!!!!
+    beats_per_bar, beats_per_whole_note = None, None
+    
+    num_notes = 0
+    for i, msg in enumerate(f.tracks[0]):
+        if msg.type == "time_signature":
+            beats_per_bar = msg.numerator
+            beats_per_whole_note = msg.denominator
+        if msg.type == "note_on":
+            num_notes += 1
+
+    # defined in unit of tick
+    num_ticks_per_measure = ticks_per_beat * beats_per_bar
+
+    print("ticks_per_beat: {}\nbeats_per_bar: {}\nbeats_per_whole_note: {}\n".\
+        format(ticks_per_beat, beats_per_bar, beats_per_whole_note))
+
+    notes = getNotes(f)
+    tick_measure_list = []
+    for (msg_type, msg_note_number, msg_note, _, msg_delta_tick, global_tick) in notes:
+        num_measure_passed = (global_tick // num_ticks_per_measure)
+        fraction = Fraction((global_tick - num_ticks_per_measure * num_measure_passed), num_ticks_per_measure)
+        entry = {"global_tick": global_tick, "delta_tick": msg_delta_tick, \
+                 "note_number": msg_note_number, "note": msg_note,\
+                 "num_measure_passed": num_measure_passed, \
+                 "pos_in_measure": fraction.numerator, "measure_resolution": fraction.denominator}
+        tick_measure_list.append(entry)
+
+    return tick_measure_list
+
+
+def getPositionFromTick(tick_measure_list, tick):
+    for entry in tick_measure_list:
+        if entry["global_tick"] == tick:
+            return entry["num_measure_passed"], \
+            Fraction(entry["pos_in_measure"], entry["measure_resolution"])
+
+
+def getEuclideanDist(test_vec, orig_vec):
+    # print("test_vec: {}, orig_vec: {}".format(test_vec, orig_vec))
+    return np.linalg.norm(np.array(test_vec)-np.array(orig_vec), ord=2)
+
 
 # stores midi note info in a list
 def getNotes(f):
     notes = []
+    global_tick = 0
+    delta_tick = 0
     merged_tracks = mido.merge_tracks(f.tracks)
     for i,msg in enumerate(merged_tracks):
+        global_tick += msg.time
         if msg.is_meta:
+            delta_tick += msg.time
             continue
-        if msg.type == "note_on":
-            notes.append(int(msg.note))
+        if (msg.type == "note_on") and (msg.velocity != 0):
+            notes.append((msg.type, msg.note, numberToNote(msg.note), msg.velocity, \
+                msg.time + delta_tick, global_tick))
+            delta_tick = 0
+            continue
+        delta_tick += msg.time
     return notes
 
 
 def _getSeqVec(notes):
     vec = [0] * WINDOW
-    for i, note in enumerate(notes):
+    for i, (_, note, _, _, _, _) in enumerate(notes):
         vec[i] = note
     return vec
 
 
 # flag = "L" -> live
 # flag = "O" -> original
-def getVecs(notes, flag="L"):
+def getSeqVecs(notes, window=WINDOW):
     info = []
-    for start in range(len(notes)):
-        if (start+WINDOW) > len(notes):
+    for start, (_, _, _, _, delta_tick, global_tick) in enumerate(notes):
+        if (start+window) > len(notes):
             part = notes[start:]
         else:
-            part = notes[start:start+WINDOW]
+            part = notes[start:start+window]
         vec = _getSeqVec(part)
-        info.append(vec) 
-        if flag == "L":
-            return info
+        info.append({"global_tick": global_tick, "feature": vec})
+
     return info
 
 
 # prev defines the point of match at the last matching
-def matchDFs(live_vecs, orig_vecs, prev_pos=0):
-    live_vec = live_vecs[0]
-    minDist = None
-    minPos = None
+def matchDFs(live_notes, orig_vecs, prev_pos=0):
+    minDist, pos, tick = None, None, None
 
     # search from the prev point to left/right simultaneously
 
@@ -66,41 +118,48 @@ def matchDFs(live_vecs, orig_vecs, prev_pos=0):
         right_dist, left_dist = None, None
 
         if (right_vec):
-            right_dist = getEuclideanDist(live_vec, right_vec)
+            right_dist = getEuclideanDist(live_notes, right_vec["feature"])
+            print("right_vec: {}".format(right_vec["feature"]))
         if (left_vec):
-            left_dist = getEuclideanDist(live_vec, left_vec)
+            left_dist = getEuclideanDist(live_notes, left_vec["feature"])
+            print("left_vec: {}".format(left_vec["feature"]))
 
+        print("step: {}, right_dist: {}, left_dist: {}".format(step, right_dist, left_dist))
         # right is picked with priority
         pick_right = (right_vec != None) and ((left_dist == None) or (right_dist <= left_dist))
 
-        print("step: {}, pick_right: {}".format(step, pick_right))
+        # print("step: {}, pick_right: {}".format(step, pick_right))
 
         if (minDist == None):
             if pick_right:
                 minDist = right_dist
-                minPos = [prev_pos + step]
+                pos = prev_pos + step
+                tick = right_vec["global_tick"]
             else:
                 minDist = left_dist
-                minPos = [prev_pos - step]
-        elif ((right_dist <= minDist) or (left_dist <= minDist)):
+                pos = prev_pos - step
+                tick = left_vec["global_tick"]
+        elif ((right_dist != None) and (right_dist <= minDist))\
+             or ((left_dist != None) and (left_dist <= minDist)):
             if pick_right:
-                if math.isclose(right_dist, minDist, rel_tol=1e-5):
-                    minPos.append(right_dist)
-                else:
+                if not math.isclose(right_dist, minDist, rel_tol=1e-5):
                     minDist = right_dist
-                    minPos = [prev_pos + step]
+                    pos = prev_pos + step
+                    tick = right_vec["global_tick"]
             else:
-                if math.isclose(left_dist, minDist, rel_tol=1e-5):
-                    minPos.append(left_dist)
-                else:
+                if not math.isclose(left_dist, minDist, rel_tol=1e-5):
                     minDist = left_dist
-                    minPos = [prev_pos - step]
+                    pos = prev_pos - step
+                    tick = left_vec["global_tick"]
 
         step += 1
-        left_vec = orig_vecs[prev_pos-step]
-        right_vec = orig_vecs[prev_pos+step]
+        left_vec, right_vec = None, None
+        if prev_pos - step >= 0:
+            left_vec = orig_vecs[prev_pos-step]
+        if prev_pos + step < len(orig_vecs):
+            right_vec = orig_vecs[prev_pos+step]
 
-    return minDist, minPos[0]
+    return minDist, pos, tick
 
 ###############Matching Utils####################
 
@@ -115,15 +174,15 @@ def numberToSound(num):
     note = num - 20
 
 
-def isNoteOn(status):
+def isNoteOn(status, velocity):
     # Note on: Status byte: 1001 CCCC / 0x90 ..
     # Note off: Status byte: 1000 CCCC / 0x80 ..
-    return status == int("90", 16)
+    return (status == 144) and (velocity != 0)
 
 ###############MIDI Utils########################
     
 
-def run(input_device, orig_vecs):
+def run(input_device, orig_vecs, orig_tick_measure_list):
     live_notes = []
     count = 0
     prev_pos = 0
@@ -133,24 +192,28 @@ def run(input_device, orig_vecs):
             m_e = input_device.read(1)[0] 
             data = m_e[0] # midi info
             timestamp = m_e[1] # timestamp
-            
-            if isNoteOn(data[0]):
+            velocity = data[2]
+
+            if isNoteOn(data[0], velocity):
                 note = numberToNote(data[1])
-                velocity = data[2]
                 print("note: {}".format(note))
                 live_notes.append(data[1])
 
-                print("live_notes:{}".format(live_notes))
-
                 count += 1
                 if count == WINDOW:
-                    ###match
-                    live_vecs = getVecs(live_notes, flag="L")
-                    print("live_vecs:{}".format(live_vecs))
+                    print("live_notes:{}\n{}".format(\
+                        list(map(lambda num: numberToNote(num), live_notes)),\
+                        live_notes))
+                    
+                    minDist, pos, tick = matchDFs(live_notes, orig_vecs, prev_pos=prev_pos)
+                    print("minDist: {}, pos: {}, tick: {} ".format(minDist, pos, tick))
 
-                    minDist, minPos = matchDFs(live_vecs, orig_vecs, prev_pos=prev_pos)
-                    print("minPos: {} ".format(minPos))
-                    prev_pos = minPos
+                    # find position
+                    num_measure_passed, fraction = \
+                    getPositionFromTick(orig_tick_measure_list, tick)
+                    print("measure: {}, position: {}".format(num_measure_passed, fraction))
+
+                    prev_pos = pos
                     count = 0
                     live_notes = []
                 
@@ -158,11 +221,14 @@ def run(input_device, orig_vecs):
 def main():
 
     ############prepare midi file#####################
-    midi_file_name = "Swans_on_the_lake_easy"
-    midi_file_path = os.path.join(static_dir, midi_file_name + ".midi")
+    midi_file_name = "Piano_Man_Easy.mscz"
+    midi_file_path = os.path.join(static_dir, midi_file_name + ".mid")
     f = mido.MidiFile(midi_file_path)
     orig_notes = getNotes(f)
-    orig_vecs = getVecs(orig_notes, flag="O")
+    orig_vecs = getSeqVecs(orig_notes, window=WINDOW)
+    orig_tick_measure_list = getTickMeasureDict(f)
+
+    # print("tick_measure_list: {}".format(orig_tick_measure_list))
 
     pygame.init()
     pygame.midi.init()
@@ -176,7 +242,7 @@ def main():
     input_device = pygame.midi.Input(input_id)
     print("midi input device: {}".format(pygame.midi.get_device_info(input_id)))
 
-    run(input_device, orig_vecs)
+    run(input_device, orig_vecs, orig_tick_measure_list)
 
     return
 

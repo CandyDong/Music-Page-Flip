@@ -538,12 +538,12 @@ def main():
 
 
 	# split the master midi file accordingly and then save them in different folders
-	# createAndSaveMidiSlices(f, orig_sample_save_path, window=30)
+	createAndSaveMidiSlices(f, orig_sample_save_path, window=10)
 
 	# version 2 midi matching
-	# for p in percentages[1:]:
-	# 	# arguments: (1) dir of original sample files (2) path to save generated midi files
-	# 	replaceRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
+	for p in percentages[1:]:
+		# arguments: (1) dir of original sample files (2) path to save generated midi files
+		replaceRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
 	
 	for p in percentages:
 		result = testFileMatching(os.path.join(sample_save_path, str(p)), orig_notes, tick_measure_list)
