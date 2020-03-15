@@ -7,6 +7,7 @@ import numpy as np
 import math
 
 import mido
+import csv
 
 from fractions import Fraction
 from itertools import permutations, combinations
@@ -22,6 +23,15 @@ DELTA_TICK = 4
 GLOBAL_TICK = 5
 
 ###############Matching Utils####################
+def createCSVFromListOfDict(l, csv_path):
+	with open(csv_path, "w") as f_result:
+			writer = csv.DictWriter(f_result, fieldnames=["index"] + list(l[0].keys()))   
+			writer.writeheader()
+			for i, row in enumerate(l):
+				row["index"] = i
+				writer.writerow(row)
+
+
 # get measure information 
 # use global tick instead of delta tick
 # returns a dictionary that stores (tick, measure) as key pairs
@@ -149,7 +159,6 @@ def _findPosInNoteGroups(noteGroups, n):
 		i += 1
 
 
-
 def getSeqVecs(notes, window=WINDOW):
 	info = []
 	
@@ -166,28 +175,25 @@ def getSeqVecs(notes, window=WINDOW):
 		i = j
 	# print("noteGroups: {}".format(noteGroups))
 
-	# print("size(noteGroups): {}, size(notes): {}".format(len(noteGroups), len(notes)))
+	print("size(noteGroups): {}, size(notes): {}".format(len(noteGroups), len(notes)))
 	start, p = 0, (0, 0) # p points to the position of the note in the notegroup
 	while (start < len(notes)):
 		k = 0
 		vec = [[]]
 		while (k < window) and ((k+start) < len(notes)):
 			cur = noteGroups[p[0]]
+			part = noteGroups[p[0]][p[1]:]
 			# print("start: {}, k: {}, ind: {}, p:{}, cur: {}".format(start, k, start+k, p, cur))
 
-			# for chords
-			if (len(cur) > 1) and (len(cur) <= (window-k)):
-				n = len(cur)
+			if (len(part) <= (window-k)):
+				n = len(part)
 				p = (p[0]+1, 0)
-				k += len(cur)
-			elif (len(cur) > 1) and (len(cur) > (window-k)): # length of vec smaller than window
+				k += len(part)
+			else: # length of vec smaller than window
 				n = window-k
-				p = (p[0], window-k)
-				k += window-k
-			else: # single note
-				n = 1
-				p = (p[0]+1, 0)
-				k += 1
+				p = (p[0], p[1]+window-k)
+				k = window
+
 			subSets = _getSubsets(cur, n)
 
 			permutations = []
@@ -196,8 +202,14 @@ def getSeqVecs(notes, window=WINDOW):
 			
 			vec = [v + s for v in vec for s in permutations]
 			# print("vec: {}".format(permutations, vec))
-		
-		info.append({"global_tick": notes[start][GLOBAL_TICK], "feature": vec})
+		end = start + k -1 if (start+k-1) < len(notes) else len(notes)-1
+		info.append({
+					"start_tick": notes[start][GLOBAL_TICK],\
+					"end_tick": notes[end][GLOBAL_TICK], \
+					"start_note": notes[start][NOTE],\
+					"end_note": notes[end][NOTE],\
+					"feature": vec
+					})
 		start += 1
 		p = _findPosInNoteGroups(noteGroups, start)
 		# print("updated p: {}".format(p))
@@ -220,21 +232,23 @@ def matchDFs(live_notes, orig_vecs, prev_pos=0):
 		right_dist, left_dist = None, None
 
 		if (right_vec):
+			print("len(right_vec): {}".format(len(right_vec["feature"][0])))
 			if not (len(right_vec["feature"][0]) < len(live_notes)):
 				print("right_vec: {}".format(right_vec["feature"]))
 				right_dist = getEuclideanDist(live_notes, right_vec["feature"])
 			
 		if (left_vec):
+			# print("len(left_vec): {}".format(len(left_vec["feature"][0])))
 			if not (len(left_vec["feature"][0]) < len(live_notes)):
-				print("left_vec: {}".format(left_vec["feature"]))
+				# print("left_vec: {}".format(left_vec["feature"]))
 				left_dist = getEuclideanDist(live_notes, left_vec["feature"])
 		
 		if (right_dist == None) and (left_dist == None):
 			break
 
-		print("step: {}, right_dist: {}, left_dist: {}".format(step, right_dist, left_dist))
+		print("step: {}, right_dist: {}, left_dist: {}\n".format(step, right_dist, left_dist))
 		# right is picked with priority
-		pick_right = (right_vec != None) and ((left_dist == None) or (right_dist <= left_dist))
+		pick_right = (right_dist != None) and ((left_dist == None) or (right_dist <= left_dist))
 
 		# print("step: {}, pick_right: {}".format(step, pick_right))
 
@@ -242,23 +256,23 @@ def matchDFs(live_notes, orig_vecs, prev_pos=0):
 			if pick_right:
 				minDist = right_dist
 				pos = prev_pos + step
-				tick = right_vec["global_tick"]
+				tick = right_vec["end_tick"]
 			else:
 				minDist = left_dist
 				pos = prev_pos - step
-				tick = left_vec["global_tick"]
+				tick = left_vec["end_tick"]
 		elif ((right_dist != None) and (right_dist <= minDist))\
 			 or ((left_dist != None) and (left_dist <= minDist)):
 			if pick_right:
 				if not math.isclose(right_dist, minDist, rel_tol=1e-5):
 					minDist = right_dist
 					pos = prev_pos + step
-					tick = right_vec["global_tick"]
+					tick = right_vec["end_tick"]
 			else:
 				if not math.isclose(left_dist, minDist, rel_tol=1e-5):
 					minDist = left_dist
 					pos = prev_pos - step
-					tick = left_vec["global_tick"]
+					tick = left_vec["end_tick"]
 
 		# smallest distance possible
 		if math.isclose(minDist, 0, rel_tol=1e-5):
@@ -336,6 +350,7 @@ def main():
 	f = mido.MidiFile(midi_file_path)
 	orig_notes = getNotes(f)
 	orig_vecs = getSeqVecs(orig_notes, window=WINDOW)
+	createCSVFromListOfDict(orig_vecs, os.path.join(static_dir, midi_file_name, "info.csv"))
 
 	orig_tick_measure_list = getTickMeasureDict(f)
 
