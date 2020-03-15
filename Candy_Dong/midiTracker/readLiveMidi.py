@@ -9,10 +9,17 @@ import math
 import mido
 
 from fractions import Fraction
-from itertools import permutations 
+from itertools import permutations, combinations
 
 static_dir = "../static/"
 WINDOW = 10
+
+MSG_TYPE = 0
+NOTE_NUM = 1 
+NOTE = 2
+VELOCITY = 3 
+DELTA_TICK = 4
+GLOBAL_TICK = 5
 
 ###############Matching Utils####################
 # get measure information 
@@ -92,63 +99,110 @@ def getNotes(f):
 
 def _getPermutations(l):
 	# If l is empty then there are no permutations 
+	# print("l: {}".format(l))
 	if len(l) == 0: 
 		return [[]] 
   
 	# If there is only one element in l then, only 
 	# one permuatation is possible 
 	if len(l) == 1: 
-		return [l] 
+		return [l]
   
 	result = [] # empty set that will store current permutation 
   
 	for i in range(len(l)): 
 		m = l[i] 
-		remaining = l[:i] + l[i+1:] 
+		remaining = l[:i] + l[i+1:]
+
+		# print("m: {}, remaining: {}".format(m, remaining))
 
 		for p in _getPermutations(remaining):
 			cur = [m] + p
+			# print("p: {}, cur:{}".format(p, cur))
 			setCur = set(tuple(cur))
 			setResult = set(map(tuple, result))
 			if not setCur in setResult:
-				result.append([m] + p)
+				result.append(cur)
+
+		# print("result: {}".format(result))
 
 	return result
-  
 
 
-def _getSeqVec(notes):
-	vec = [[]]
-	i = 0
-	# print("notes: {}".format(notes))
-	while (i < len(notes)):
-		tmp = [notes[i][1]]
+def _getSubsets(l, n):
+	return list(map(list, combinations(l, n)))
 
-		# find chords
-		j = i+1
-		while (j < len(notes)) and (notes[j][-2] == 0):
-			tmp.append(notes[j][1])
-			j += 1
-		permutations = _getPermutations(tmp)
-		# print("tmp: {}, permutations: {}".format(tmp, permutations))
 
-		i = j
-		vec = [a+b for a in vec for b in permutations]
-		# print("vec: {}".format(vec))
+# n is the index of the note
+# find the position of the nth note in noteGroups
+def _findPosInNoteGroups(noteGroups, n):
+	numNotes = sum(list(map(lambda x: len(x), noteGroups)))
+	if n >= numNotes:
+		return None
 
-	return vec
+	i, count = 0, 0
+	while (i < len(noteGroups)):
+		cur = noteGroups[i]
+		count += len(cur)
+		if (count > n):
+			return (i, len(cur) - (count-n))
+		i += 1
+
 
 
 def getSeqVecs(notes, window=WINDOW):
 	info = []
-	for start, (_, note_number, _, _, delta_tick, global_tick) in enumerate(notes):
-		if (start+window) > len(notes):
-			part = notes[start:]
-		else:
-			part = notes[start:start+window]
-		vec = _getSeqVec(part)
-		info.append({"global_tick": global_tick, "feature": vec})
+	
+	noteGroups = []
 
+	i = 0
+	while (i < len(notes)):
+		tmp = [notes[i][NOTE_NUM]]
+		j = i+1
+		while (j < len(notes)) and (notes[j][DELTA_TICK] == 0):
+			tmp.append(notes[j][NOTE_NUM])
+			j += 1
+		noteGroups.append(tmp)
+		i = j
+	# print("noteGroups: {}".format(noteGroups))
+
+	# print("size(noteGroups): {}, size(notes): {}".format(len(noteGroups), len(notes)))
+	start, p = 0, (0, 0) # p points to the position of the note in the notegroup
+	while (start < len(notes)):
+		k = 0
+		vec = [[]]
+		while (k < window) and ((k+start) < len(notes)):
+			cur = noteGroups[p[0]]
+			# print("start: {}, k: {}, ind: {}, p:{}, cur: {}".format(start, k, start+k, p, cur))
+
+			# for chords
+			if (len(cur) > 1) and (len(cur) <= (window-k)):
+				n = len(cur)
+				p = (p[0]+1, 0)
+				k += len(cur)
+			elif (len(cur) > 1) and (len(cur) > (window-k)): # length of vec smaller than window
+				n = window-k
+				p = (p[0], window-k)
+				k += window-k
+			else: # single note
+				n = 1
+				p = (p[0]+1, 0)
+				k += 1
+			subSets = _getSubsets(cur, n)
+
+			permutations = []
+			for s in subSets:
+				permutations.extend(_getPermutations(s))
+			
+			vec = [v + s for v in vec for s in permutations]
+			# print("vec: {}".format(permutations, vec))
+		
+		info.append({"global_tick": notes[start][GLOBAL_TICK], "feature": vec})
+		start += 1
+		p = _findPosInNoteGroups(noteGroups, start)
+		# print("updated p: {}".format(p))
+	# print("info: {}".format(info))
+	
 	return info
 
 
@@ -166,13 +220,17 @@ def matchDFs(live_notes, orig_vecs, prev_pos=0):
 		right_dist, left_dist = None, None
 
 		if (right_vec):
-			print("right_vec: {}".format(right_vec["feature"]))
-			right_dist = getEuclideanDist(live_notes, right_vec["feature"])
+			if not (len(right_vec["feature"][0]) < len(live_notes)):
+				print("right_vec: {}".format(right_vec["feature"]))
+				right_dist = getEuclideanDist(live_notes, right_vec["feature"])
 			
 		if (left_vec):
-			print("left_vec: {}".format(left_vec["feature"]))
-			left_dist = getEuclideanDist(live_notes, left_vec["feature"])
-			
+			if not (len(left_vec["feature"][0]) < len(live_notes)):
+				print("left_vec: {}".format(left_vec["feature"]))
+				left_dist = getEuclideanDist(live_notes, left_vec["feature"])
+		
+		if (right_dist == None) and (left_dist == None):
+			break
 
 		print("step: {}, right_dist: {}, left_dist: {}".format(step, right_dist, left_dist))
 		# right is picked with priority
@@ -238,7 +296,6 @@ def isNoteOn(status, velocity):
 
 def run(input_device, orig_vecs, orig_tick_measure_list):
 	live_notes = []
-	count = 0
 	prev_pos = 0
 
 	while True:
@@ -253,8 +310,8 @@ def run(input_device, orig_vecs, orig_tick_measure_list):
 				print("note: {}".format(note))
 				live_notes.append(data[1])
 
-				count += 1
-				if count == WINDOW:
+				
+				if len(live_notes) == WINDOW:
 					print("live_notes:{}\n{}".format(\
 						list(map(lambda num: numberToNote(num), live_notes)),\
 						live_notes))
@@ -268,8 +325,7 @@ def run(input_device, orig_vecs, orig_tick_measure_list):
 					print("measure: {}, position: {}".format(num_measure_passed, fraction))
 
 					prev_pos = pos
-					count = 0
-					live_notes = []
+					live_notes = live_notes[1:]
 				
 				
 def main():
