@@ -5,8 +5,6 @@ from pygame.locals import *
 import os
 import numpy as np
 import math
-import time
-import json
 
 import mido
 import csv
@@ -16,13 +14,12 @@ import pprint as pp
 from fractions import Fraction
 from itertools import permutations, combinations
 
-NOTE_IND = 0
-MSG_TYPE = 1
-NOTE_NUM = 2 
-NOTE = 3
-VELOCITY = 4 
-DELTA_TICK = 5
-GLOBAL_TICK = 6
+MSG_TYPE = 0
+NOTE_NUM = 1 
+NOTE = 2
+VELOCITY = 3 
+DELTA_TICK = 4
+GLOBAL_TICK = 5
 
 ############### Matching Utils ####################
 def createCSVFromListOfDict(l, csv_path):
@@ -58,7 +55,7 @@ def getTickMeasureDict(f):
 
 	notes = getNotes(f)
 	tick_measure_list = []
-	for (_, msg_type, msg_note_number, msg_note, _, msg_delta_tick, global_tick) in notes:
+	for (msg_type, msg_note_number, msg_note, _, msg_delta_tick, global_tick) in notes:
 		num_measure_passed = (global_tick // num_ticks_per_measure)
 		fraction = Fraction((global_tick - num_ticks_per_measure * num_measure_passed), num_ticks_per_measure)
 		entry = {"global_tick": global_tick, "delta_tick": msg_delta_tick, \
@@ -77,11 +74,16 @@ def getPositionFromTick(tick_measure_list, tick):
 			Fraction(entry["pos_in_measure"], entry["measure_resolution"])
 
 
-def getEuclideanDist(test_vec, orig_vecs):
+def getEuclideanDist(test_vecs, orig_vec):
 	# print("test_vec: {}, orig_vec: {}".format(test_vec, orig_vec))
-	def getDist(a, b):
-		return np.linalg.norm(np.array(a)-np.array(b), ord=2)
-	return np.amin(list(map(lambda a: getDist(a, test_vec), orig_vecs)))
+	smallest = None
+	for test_vec in test_vecs:
+		dist = np.linalg.norm(np.array(test_vec)-np.array(orig_vec), ord=2)
+		if (smallest == None) or (smallest > dist):
+			smallest = dist
+		if smallest == 0:
+			break
+	return smallest
 
 
 # stores midi note info in a list
@@ -89,7 +91,6 @@ def getNotes(f):
 	notes = []
 	global_tick = 0
 	delta_tick = 0
-	note_id = 0
 	merged_tracks = mido.merge_tracks(f.tracks)
 	for i,msg in enumerate(merged_tracks):
 		global_tick += msg.time
@@ -97,10 +98,9 @@ def getNotes(f):
 			delta_tick += msg.time
 			continue
 		if (msg.type == "note_on") and (msg.velocity != 0):
-			notes.append((note_id, msg.type, msg.note, numberToNote(msg.note), msg.velocity, \
+			notes.append((msg.type, msg.note, numberToNote(msg.note), msg.velocity, \
 				msg.time + delta_tick, global_tick))
 			delta_tick = 0
-			note_id += 1
 			continue
 		delta_tick += msg.time
 	return notes
@@ -142,12 +142,6 @@ def _getSubsets(l, n):
 	return list(map(list, combinations(l, n)))
 
 
-def getFlipInfo(filename):
-	with open(filename + ".json") as f:
-		data = json.load(f)
-	return data
-
-
 # n is the index of the note
 # find the position of the nth note in noteGroups
 def _findPosInNoteGroups(noteGroups, n):
@@ -164,62 +158,19 @@ def _findPosInNoteGroups(noteGroups, n):
 		i += 1
 
 
-def getNoteGroups(notes):
-	noteGroups = []
-
-	i = 0
-	while (i < len(notes)):
-		tmp = [notes[i][NOTE_NUM]]
-		j = i+1
-		while (j < len(notes)) and (notes[j][DELTA_TICK] == 0):
-			tmp.append(notes[j][NOTE_NUM])
-			j += 1
-		noteGroups.append(tmp)
-		i = j
-
-	return noteGroups
-
 def getSeqVecs(notes, window=10):
 	info = []
 	
-	noteGroups = getNoteGroups(notes)
-
-	print("size(noteGroups): {}, size(notes): {}".format(len(noteGroups), len(notes)))
-
-	INFO_TIME_START = time.time()
-
-	start, p = 0, (0, 0) # p points to the position of the note in the notegroup
+	start = 0 
 	while (start < len(notes)):
-		k = 0
-		vec = [[]]
-		while (k < window) and ((k+start) < len(notes)):
-			cur = noteGroups[p[0]]
-			part = noteGroups[p[0]][p[1]:]
-			# print("start: {}, k: {}, ind: {}, p:{}, cur: {}".format(start, k, start+k, p, cur))
+		if ((start+window) >= len(notes)):
+			vec = list(map(lambda x: x[NOTE_NUM], notes[start:len(notes)-1]))
+			end = len(notes)-1
+		else:
+			vec = list(map(lambda x: x[NOTE_NUM], notes[start:start+window]))
+			end = start+window-1
 
-			if (len(part) <= (window-k)):
-				n = len(part)
-				p = (p[0]+1, 0)
-				k += len(part)
-			else: # length of vec smaller than window
-				n = window-k
-				p = (p[0], p[1]+window-k)
-				k = window
-
-			subSets = _getSubsets(cur, n)
-
-			permutations = []
-			for s in subSets:
-				permutations.extend(_getPermutations(s))
-			
-			vec = [v + s for v in vec for s in permutations]
-
-			# print("number of possible vecs: {:d}".format(len(vec)))
-			# print("vec: {}".format(permutations, vec))
-		end = start + k -1 if (start+k-1) < len(notes) else len(notes)-1
 		info.append({
-					"start_ind": notes[start][NOTE_IND],\
-					"end_ind": notes[end][NOTE_IND],\
 					"start_tick": notes[start][GLOBAL_TICK],\
 					"end_tick": notes[end][GLOBAL_TICK], \
 					"start_note": notes[start][NOTE],\
@@ -227,18 +178,13 @@ def getSeqVecs(notes, window=10):
 					"feature": vec
 					})
 		start += 1
-		p = _findPosInNoteGroups(noteGroups, start)
-		# print("updated p: {}".format(p))
-	# print("info: {}".format(info))
-	
-	INFO_TIME_END = time.time()
-	print("time elasped for getting the info structure ready: {}".format(INFO_TIME_END-INFO_TIME_START))
+
 	return info
 
 
 # prev defines the point of match at the last matching
-def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
-	minDist, pos, tick, flip = None, None, None, False
+def matchDFs(live_notes, orig_vecs, window, prev_pos):
+	minDist, pos, tick = None, None, None
 
 	# search from the prev point to left/right simultaneously
 
@@ -247,27 +193,19 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 	right_vec = orig_vecs[prev_pos+step]
 
 	while (left_vec) or (right_vec):
-		# if (step >= window*3):
-		# 	return minDist, pos, tick
-
 		right_dist, left_dist = None, None
-
-		DIST_TIME_START = time.time()
 
 		if (right_vec):
 			# print("len(right_vec): {}".format(len(right_vec["feature"][0])))
-			if not (len(right_vec["feature"][0]) < len(live_notes)):
+			if not (len(right_vec["feature"]) < window):
 				# print("right_vec: {}".format(right_vec["feature"]))
 				right_dist = getEuclideanDist(live_notes, right_vec["feature"])
 			
 		if (left_vec):
 			# print("len(left_vec): {}".format(len(left_vec["feature"][0])))
-			if not (len(left_vec["feature"][0]) < len(live_notes)):
+			if not (len(left_vec["feature"][0]) < window):
 				# print("left_vec: {}".format(left_vec["feature"]))
 				left_dist = getEuclideanDist(live_notes, left_vec["feature"])
-
-		DIST_TIME_END = time.time()
-		# print("time elapsed for dist calculation: {}".format(DIST_TIME_END-DIST_TIME_START))
 		
 		if (right_dist == None) and (left_dist == None):
 			break
@@ -311,21 +249,7 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 		if prev_pos + step < len(orig_vecs):
 			right_vec = orig_vecs[prev_pos+step]
 
-	# find if prev_pos is before the page flip position
-	prev_ind = orig_vecs[prev_pos]["end_ind"]
-	if orig_flip["page"][-1] > prev_ind:
-		nex = np.where(np.array(orig_flip["page"]) > prev_ind)[0][0]
-		nex_ind = orig_flip["page"][nex]
-		cur_ind = orig_vecs[pos]["end_ind"]
-
-		print("nearest next flip point: {}, previous note#: {}, current note#:{}"\
-			.format(nex_ind, \
-				prev_ind, \
-				cur_ind))
-		if cur_ind >= nex_ind:
-			flip = True
-
-	return minDist, pos, tick, flip
+	return minDist, pos, tick
 
 
 ############### MIDI Utils ########################
@@ -347,10 +271,9 @@ def isNoteOn(status, velocity):
 ############### Run ########################
 	
 
-def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
+def run(opts, input_device, orig_vecs, orig_tick_measure_list):
 	live_notes = []
 	prev_pos = 0
-	start_ticks = pygame.time.get_ticks() #starter tick
 
 	while True:
 		if input_device.poll():
@@ -364,29 +287,26 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 				print("note: {}".format(note))
 				live_notes.append(data[1])
 
-			seconds = (pygame.time.get_ticks() - start_ticks)/1000 #calculate how many seconds
-			if seconds > 2: # if more than 1 second
-				if len(live_notes) > opts.window:
-					cur_notes = live_notes[-opts.window:]
-					# print("live_notes:{}\n{}".format(\
-					# 	list(map(lambda num: numberToNote(num), live_notes)),\
-					# 	live_notes))
+				
+				if len(live_notes) == opts.window:
+					print("live_notes:{}\n{}".format(\
+						list(map(lambda num: numberToNote(num), live_notes)),\
+						live_notes))
+
+					permut = list(permutations(live_notes))
+					print("permutations: {}, size: {}".format(permut, len(permut)))
 					
-					minDist, pos, tick, flip = matchDFs(cur_notes, orig_vecs, orig_flip, \
-						opts.window, prev_pos)
-					# print("minDist: {}, pos: {}, tick: {} ".format(minDist, pos, tick))
+					minDist, pos, tick = matchDFs(permut, orig_vecs, opts.window, prev_pos)
+					print("minDist: {}, pos: {}, tick: {} ".format(minDist, pos, tick))
 
 					# find position
 					num_measure_passed, fraction = \
 					getPositionFromTick(orig_tick_measure_list, tick)
-
-					print("measure: {}, position: {}, page flip = {}".\
-						format(num_measure_passed, fraction, flip))
-
+					print("measure: {}, position: {}".format(num_measure_passed, fraction))
 
 					prev_pos = pos
-					start_ticks = pygame.time.get_ticks() #starter tick
-			
+					live_notes = live_notes[1:]
+				
 				
 def main():
 	############get command line arguments############
@@ -399,9 +319,8 @@ def main():
 	midi_file_path = os.path.join(opts.static_dir, midi_file_name + ".mid")
 	f = mido.MidiFile(midi_file_path)
 	orig_notes = getNotes(f)
-	orig_flip = getFlipInfo(os.path.join(opts.static_dir, midi_file_name))
 	orig_vecs = getSeqVecs(orig_notes, window=opts.window)
-	# createCSVFromListOfDict(orig_vecs, os.path.join(opts.static_dir, midi_file_name, "info.csv"))
+	createCSVFromListOfDict(orig_vecs, os.path.join(opts.static_dir, midi_file_name, "info.csv"))
 
 	orig_tick_measure_list = getTickMeasureDict(f)
 
@@ -419,7 +338,7 @@ def main():
 	input_device = pygame.midi.Input(input_id)
 	print("midi input device connected: {}".format(pygame.midi.get_device_info(input_id)))
 
-	run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list)
+	run(opts, input_device, orig_vecs, orig_tick_measure_list)
 
 	return
 
