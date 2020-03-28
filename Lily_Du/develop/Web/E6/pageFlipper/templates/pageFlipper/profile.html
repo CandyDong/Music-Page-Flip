@@ -1,3 +1,13 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
+    <a href="{% url 'homepage' %}"> Home </a>
+    <div>
+        List of Scores
+        <ul>
+            {% for score in scores %}
+                {{score}}
+                </br>
+            {% endfor %}
+        </ul>
+    </div>
 {% endblock %}

@@ -1,3 +1,15 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
+    <form method='post' action='select-score'>
+        <select class="form-control" name='selected_score'>
+            {% for score in scores %}
+                <option value='{{score.scoreName}}'>{{ score.scoreName }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">
+            Choose
+        </button>
+        {% csrf_token %}
+    </form>
+    
 {% endblock %}

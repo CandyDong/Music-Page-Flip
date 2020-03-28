@@ -2,7 +2,15 @@
 {% block content %}
     <a href="{% url 'profile' %}"> Profile </a>
     </br>
-    <button>
-        Connect
-    </button>
+    <form action="{% url 'connect-rpi' %}" method="post">
+        <button type="submit">
+            Connect
+        </button>
+        {% csrf_token %}
+    </form>
+    {% if message %}
+        <div>
+            {{message}}
+        </div>
+    {% endif %}
 {% endblock %}

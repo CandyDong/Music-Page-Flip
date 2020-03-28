@@ -72,10 +72,50 @@ def register_action(request):
     login(request, new_user)
     return redirect(reverse('homepage'))
 
+def connect_rpi(request):
+    context = {}
+    available_rpi = RPI.objects.get(pk=1)
+    if(available_rpi.in_use == '0'):
+        available_rpi.in_use = '1'
+        available_rpi.save()
+        request.user.profile.rpiId = '1'
+        request.user.profile.save()
+        return redirect('select')
+
+    context['message'] = "All rpis in use, please try again later."
+    return render(request, 'pageFlipper/homepage.html', context)
+
+def disconnect_rpi(request):
+    context = {}
+    available_rpi = RPI.objects.get(pk=1)
+    available_rpi.in_use = '0'
+    available_rpi.save()
+    request.user.profile.rpiId = ''
+    request.user.profile.save()
+    return render(request, 'pageFlipper/homepage.html', context)
+
+def select_score(request):
+    context = {}
+    if request.POST:
+        score = request.POST['selected_score']
+        context['scoreName'] = score
+        return render(request, 'pageFlipper/display.html', context)
+    return redirect('display')
+
+def selectpage(request):
+    context = {}
+    context['scores'] = request.user.profile.scores.all()
+    return render(request, 'pageFlipper/select.html', context)
+
+def displaypage(request):
+    context = {}
+    return render(request, 'pageFlipper/display.html', context)
+
 def homepage(request):
     context = {}
     return render(request, 'pageFlipper/homepage.html', context)
 
 def profile(request):
     context = {}
+    context['scores'] = request.user.profile.scores.all()
     return render(request, 'pageFlipper/profile.html', context)
