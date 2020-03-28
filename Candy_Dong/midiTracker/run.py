@@ -10,7 +10,7 @@ import Levenshtein
 from fractions import Fraction
 
 static_dir = "../static/"
-
+WINDOW = 10
 DEBUG = True
 percentages = [0, 5, 10, 20, 30, 40, 50]
 
@@ -514,7 +514,7 @@ def preprocess(filename):
 
 def main():
 	#Chopin_-_Nocturne_Op_9_No_2_E_Flat_Major.midi
-	midi_file_name = "Piano_Man_Easy.mscz"
+	midi_file_name = "Penguins_Game"
 	preprocess(midi_file_name)
 
 	################################# prepare file paths to be used #######################
@@ -533,17 +533,17 @@ def main():
 	###################### make data structures to store meta info ########################
 	orig_notes = getNotesWithDeltaTick(f)
 	tick_measure_list = getTickMeasureDict(f)
-	# createCSVFromListOfDict(tick_measure_list, os.path.join(sample_save_path, "tick_measure.csv"))
+	createCSVFromListOfDict(tick_measure_list, os.path.join(sample_save_path, "tick_measure.csv"))
 	###################### make data structures to store meta info ########################
 
 
 	# split the master midi file accordingly and then save them in different folders
-	# createAndSaveMidiSlices(f, orig_sample_save_path, window=30)
+	createAndSaveMidiSlices(f, orig_sample_save_path, window=WINDOW)
 
 	# version 2 midi matching
-	# for p in percentages[1:]:
-	# 	# arguments: (1) dir of original sample files (2) path to save generated midi files
-	# 	replaceRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
+	for p in percentages[1:]:
+		# arguments: (1) dir of original sample files (2) path to save generated midi files
+		replaceRandomNotes(orig_sample_save_path, sample_save_path, percentage=p)
 	
 	for p in percentages:
 		result = testFileMatching(os.path.join(sample_save_path, str(p)), orig_notes, tick_measure_list)
