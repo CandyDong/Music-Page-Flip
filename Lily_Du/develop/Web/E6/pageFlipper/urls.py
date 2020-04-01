@@ -13,5 +13,6 @@ urlpatterns = [
     path('disconnect-rpi', views.disconnect_rpi, name='disconnect-rpi'),
     path('select', views.selectpage, name='select'),
     path('select-score', views.select_score, name='select-score'),
-    path('display', views.displaypage, name='display')
+    path('display', views.displaypage, name='display'),
+    path('add-score', views.add_score, name='add-score')
 ]

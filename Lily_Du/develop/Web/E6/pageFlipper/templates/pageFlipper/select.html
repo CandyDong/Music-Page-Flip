@@ -11,5 +11,17 @@
         </button>
         {% csrf_token %}
     </form>
+    <form enctype="multipart/form-data" action="{% url 'add-score' %}" method="post" class="add-form">
+        <div>{{form.pic}}</div>
+        <td class="error">
+            {% for error in form.pic.errors %} {{error}} {% endfor %}
+        </td>
+        <p>
+            <button id="id_update_pic_button">
+                Submit
+            </button>
+        </p>
+        {% csrf_token %}
+    </form>
     
 {% endblock %}

@@ -6,6 +6,8 @@ class RPI(models.Model):
 
 class Score(models.Model):
     scoreName     = models.CharField(max_length=50)
+    pic           = models.FileField(blank=True, default="default.png")
+    content_type  = models.CharField(max_length=50)
     def __str__(self):
         return self.scoreName
 
