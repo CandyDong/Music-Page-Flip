@@ -71,7 +71,8 @@ def register_action(request):
     new_user = User.objects.create_user(username=form.cleaned_data['username'], 
                                         password=form.cleaned_data['password'])
     new_user.save()
-    Profile.objects.create(user=new_user)
+    new_profile = Profile.objects.create(user=new_user)
+    new_profile.save()
 
     new_user = authenticate(username=form.cleaned_data['username'],
                             password=form.cleaned_data['password'])
@@ -81,13 +82,19 @@ def register_action(request):
 
 def connect_rpi(request):
     context = {}
-    available_rpi = RPI.objects.get(pk=1)
-    if(available_rpi.in_use == '0'):
-        available_rpi.in_use = '1'
-        available_rpi.save()
-        request.user.profile.rpiId = '1'
+    available_rpis = RPI.objects.all().filter(in_use=False)
+    print("available rpi: {}".format(available_rpis))
+    if (len(available_rpis) > 0):
+        rpi_to_use = available_rpis.first()
+        print("rpi_to_use: {}".format(rpi_to_use))
+        rpi_to_use.in_use = True
+        request.user.profile.rpi = rpi_to_use
         request.user.profile.save()
         return redirect('select')
+        # available_rpi.save()
+        # request.user.profile.rpiId = '1'
+        # request.user.profile.save()
+        # return redirect('select')
 
     context['message'] = "All rpis in use, please try again later."
     return render(request, 'pageFlipper/homepage.html', context)

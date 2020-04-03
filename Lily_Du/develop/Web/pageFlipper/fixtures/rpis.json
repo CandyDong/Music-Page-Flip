@@ -1,0 +1,4 @@
+[
+	{"model": "pageFlipper.rpi", "pk": 1, "fields": {"in_use": false, "user_profile": null}},
+	{"model": "pageFlipper.rpi", "pk": 2, "fields": {"in_use": false, "user_profile": null}}
+]

@@ -82,4 +82,8 @@ class ScoreForm(forms.ModelForm):
             raise forms.ValidationError('File type is not image')
         if pic.size > MAX_UPLOAD_SIZE:
             raise forms.ValidationError('File too big (max size is {0} bytes)'.format(MAX_UPLOAD_SIZE))
+        if not (pic.name.endswith('.png') or \
+                pic.name.endswith('.jpeg') or \
+                pic.name.endswith('jpg')):
+            raise forms.ValidationError('File type must be among .png, .jpeg, .jpg')
         return pic
