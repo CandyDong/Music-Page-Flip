@@ -1,8 +1,12 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
     <div>
-        {{scoreName}}
+        {{score.name}}
     </div>
+    {% load static %}
+    <span class="img-container">
+    	<img src=" {{score.path}} ">
+    </span>
     <form action="{% url 'disconnect-rpi' %}" method="post">
         <button type="submit">
             End Session

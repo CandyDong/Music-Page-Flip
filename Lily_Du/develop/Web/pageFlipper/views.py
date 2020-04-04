@@ -3,6 +3,7 @@ from django.http import HttpResponse, Http404
 
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from urllib.parse import urlencode
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
@@ -19,6 +20,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from django.conf import settings
+from django.core.files import File
 
 from django.db import transaction
 from django.utils import timezone
@@ -121,10 +123,12 @@ def disconnect_rpi(request):
 def select_score(request):
     context = {}
     if request.POST:
-        score = request.POST['selected_score']
-        context['scoreName'] = score
-        return render(request, 'pageFlipper/display.html', context)
-    return redirect('display')
+        score_name = request.POST['selected_score']
+        base_url = reverse('display')  
+        query_string =  urlencode({'score_name': score_name})  
+        url = '{}?{}'.format(base_url, query_string) 
+        return redirect(url)
+    return redirect('select')
 
 
 def select_page(request):
@@ -227,7 +231,11 @@ def _getTitle():
     score_title = _matchTitle(img_title, db_titles)
     print('Most closely resembled title in database: ' + score_title)
 
-    return score_title, img_path
+    for filename in os.listdir(settings.MEDIA_ROOT):
+        if (filename.endswith('.png') and not 'default' in filename):
+            os.remove(os.path.join(settings.MEDIA_ROOT, filename))
+
+    return score_title
 
 
 def add_score(request):
@@ -235,10 +243,10 @@ def add_score(request):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST, PORT))
             s.sendall(title.encode('utf-8'))
-            reply = s.recv(1024)
-            if not reply != b"success":
-                print("ERROR!!!")
-                return
+            # reply = s.recv(1024)
+            # if not reply != 1:
+            #     print("ERROR!!!")
+            #     return
             print("SUCCESS sending title to python script.")
 
     context = {}
@@ -255,22 +263,32 @@ def add_score(request):
     new_score.content_type = form.cleaned_data['pic'].content_type
     form.save()
 
-    title, img_path = _getTitle()
+    title = _getTitle()
     print("recognized sheet music title is: {}".format(title))
     _send_title(title)
 
     new_score.scoreName = title
     new_score.pic.delete()
-    os.remove(img_path)
-
-    context['form'] = ScoreForm()
+    with open(os.path.join("pageFlipper", settings.MEDIA_URL, \
+                            title, title+"_1.png"), \
+                            encoding = "ISO-8859-1") as f:
+        wrapped_file = File(f)
+        new_score.pic = wrapped_file
+        new_score.path = os.path.join(settings.MEDIA_URL, \
+                                    title, title+"_1.png")
+        new_score.save()
+    
     request.user.profile.score_set.add(new_score)
-    return redirect('display')
+    base_url = reverse('display')  
+    query_string =  urlencode({'score_name': title})  
+    url = '{}?{}'.format(base_url, query_string) 
+    return redirect(url)
 
 
 def display_page(request):
-    context = {}
-    return render(request, 'pageFlipper/display.html', context)
+    score_name = request.GET.get("score_name")
+    score = Score.objects.all().filter(scoreName=score_name).first()
+    return render(request, 'pageFlipper/display.html', {"score": score})
 
 def flip_page(request):
     pass

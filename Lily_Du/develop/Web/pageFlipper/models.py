@@ -10,6 +10,7 @@ class Profile(models.Model):
 class Score(models.Model):
     scoreName     = models.CharField(max_length=50)
     pic           = models.FileField(blank=True, default="default.png")
+    path          = models.CharField(max_length=200, null=False, blank=True, default="")
     content_type  = models.CharField(max_length=50)
     user_profile = models.ForeignKey(Profile, on_delete=models.PROTECT, null=True, blank=True)
     def __str__(self):

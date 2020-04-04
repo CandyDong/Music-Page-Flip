@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
@@ -16,4 +18,4 @@ urlpatterns = [
     path('display', views.display_page, name='display'),
     path('add-score', views.add_score, name='add-score'),
     path('flip-page', views.flip_page, name='flip-page')
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

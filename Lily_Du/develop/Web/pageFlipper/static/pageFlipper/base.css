@@ -299,3 +299,11 @@ label:hover:before {
   color: #aaaaaa;
   font-weight: bold;
 }
+
+img {
+    padding: 0;
+    display: block;
+    margin: 0 auto auto 0;
+    max-height: 100%;
+    max-width: 100%;
+}
