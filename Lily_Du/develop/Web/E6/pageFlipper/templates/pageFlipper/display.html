@@ -3,6 +3,8 @@
     <div>
         {{scoreName}}
     </div>
+    {% load static %}
+    <img src="{% static 'default.png' %}">
     <form action="{% url 'disconnect-rpi' %}" method="post">
         <button type="submit">
             End Session

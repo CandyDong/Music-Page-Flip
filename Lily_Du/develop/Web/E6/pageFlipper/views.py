@@ -226,7 +226,9 @@ def add_score(request):
         new_score.pic.delete()
 
         context['form'] = ScoreForm()
+        context['path'] = 'images/' + title + '/' + title + '-1.png'
         request.user.profile.scores.add(new_score)
+        print(context['path'])
         return redirect('display')
 
     return render(request, 'pageFlipper/display.html', context)
