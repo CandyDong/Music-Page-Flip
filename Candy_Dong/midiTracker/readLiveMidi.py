@@ -16,7 +16,7 @@ import pprint as pp
 from fractions import Fraction
 from itertools import permutations, combinations
 
-import socket
+import socket, requests
 
 HOST = "127.0.0.1"
 PORT = 65432
@@ -320,6 +320,7 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 			right_vec = orig_vecs[prev_pos+step]
 
 	# find if prev_pos is before the page flip position
+	flip_to = None
 	prev_ind = orig_vecs[prev_pos]["end_ind"]
 	if orig_flip["page"][-1] > prev_ind:
 		nex = np.where(np.array(orig_flip["page"]) > prev_ind)[0][0]
@@ -332,8 +333,10 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 				cur_ind))
 		if cur_ind >= nex_ind:
 			flip = True
+			flip_to = nex + 1
 
-	return minDist, pos, tick, flip
+
+	return minDist, pos, tick, flip, flip_to
 
 
 ############### MIDI Utils ########################
@@ -380,7 +383,7 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 					# 	list(map(lambda num: numberToNote(num), live_notes)),\
 					# 	live_notes))
 					
-					minDist, pos, tick, flip = matchDFs(cur_notes, orig_vecs, orig_flip, \
+					minDist, pos, tick, flip, flip_to = matchDFs(cur_notes, orig_vecs, orig_flip, \
 						opts.window, prev_pos)
 					# print("minDist: {}, pos: {}, tick: {} ".format(minDist, pos, tick))
 
@@ -388,12 +391,28 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 					num_measure_passed, fraction = \
 					getPositionFromTick(orig_tick_measure_list, tick)
 
-					print("measure: {}, position: {}, page flip = {}".\
-						format(num_measure_passed, fraction, flip))
+					print("measure: {}, position: {}, page flip = {}, flip_to = {}".\
+						format(num_measure_passed+1, fraction, flip, flip_to))
 
+					if flip:
+						make_post_request(opts, flip_to)
 
 					prev_pos = pos
 					start_ticks = pygame.time.get_ticks() #starter tick
+
+
+def make_post_request(opts, flip_to):
+	# defining the api-endpoint  
+	API_ENDPOINT = "http://{}:8000/pageFlipper/flip-page".format(HOST)
+
+	  
+	# data to be sent to api 
+	data = {'score_name': opts.score, 
+			'flip_to':flip_to+1
+			} 
+	  
+	# sending post request and saving response as response object 
+	r = requests.post(url = API_ENDPOINT, data = data)
 			
 
 class OPT:
@@ -424,7 +443,7 @@ def main():
 			print("received title is : {}".format(title))
 			break
 
-	# opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
+	opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
 
 	# ############get command line arguments############
 	# opts = get_options()
@@ -458,8 +477,6 @@ def main():
 	print("midi input device connected: {}".format(pygame.midi.get_device_info(input_id)))
 
 	run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list)
-
-	## TODO
 	
 	return
 
