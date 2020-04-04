@@ -11,8 +11,9 @@ urlpatterns = [
     path('profile', views.profile, name='profile'),
     path('connect-rpi', views.connect_rpi, name='connect-rpi'),
     path('disconnect-rpi', views.disconnect_rpi, name='disconnect-rpi'),
-    path('select', views.selectpage, name='select'),
+    path('select', views.select_page, name='select'),
     path('select-score', views.select_score, name='select-score'),
-    path('display', views.displaypage, name='display'),
-    path('add-score', views.add_score, name='add-score')
+    path('display', views.display_page, name='display'),
+    path('add-score', views.add_score, name='add-score'),
+    path('flip-page', views.flip_page, name='flip-page')
 ]

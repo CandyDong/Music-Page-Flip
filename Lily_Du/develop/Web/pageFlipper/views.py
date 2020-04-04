@@ -10,11 +10,19 @@ from django.contrib.auth import authenticate, login, logout
 
 from django.utils import timezone
 
+from .signals import flip_page_signal
+
 from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm
 from pageFlipper.models import Profile, Score, RPI
 
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from django.conf import settings
+
 from django.db import transaction
 from django.utils import timezone
+
 
 import os
 import cv2
@@ -22,6 +30,10 @@ import numpy as np
 import pytesseract
 from fuzzywuzzy import fuzz
 import PIL
+import socket
+
+HOST = "127.0.0.1"
+PORT = 65432
 
 def login_action(request):
     context = {}
@@ -91,14 +103,11 @@ def connect_rpi(request):
         request.user.profile.rpi = rpi_to_use
         request.user.profile.save()
         return redirect('select')
-        # available_rpi.save()
-        # request.user.profile.rpiId = '1'
-        # request.user.profile.save()
-        # return redirect('select')
 
-    context['message'] = "All rpis in use, please try again later."
+    context['message'] = "All rpis are in use now, please try again later."
     return render(request, 'pageFlipper/homepage.html', context)
 
+##TODO !!!!!
 def disconnect_rpi(request):
     context = {}
     available_rpi = RPI.objects.get(pk=1)
@@ -108,6 +117,7 @@ def disconnect_rpi(request):
     request.user.profile.save()
     return render(request, 'pageFlipper/homepage.html', context)
 
+
 def select_score(request):
     context = {}
     if request.POST:
@@ -116,13 +126,15 @@ def select_score(request):
         return render(request, 'pageFlipper/display.html', context)
     return redirect('display')
 
-def selectpage(request):
+
+def select_page(request):
     context = {}
-    context['scores'] = request.user.profile.scores.all()
+    context['scores'] = request.user.profile.score_set.all()
     context['form'] = ScoreForm()
     return render(request, 'pageFlipper/select.html', context)
 
-def readTitle(inputImg):
+
+def _readTitle(inputImg):
     image = cv2.imread(inputImg)
     copy = image.copy()
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -181,30 +193,16 @@ def readTitle(inputImg):
     # cv2.imwrite("Output.png", gray)
     return text
 
-def getDBTitles():
+
+def _getDBTitles():
     L = []
-    for name in os.listdir('images'):
-        if os.path.isdir('images/'+name):
+    for name in os.listdir(settings.MEDIA_ROOT):
+        if os.path.isdir(os.path.join(settings.MEDIA_ROOT, name)):
             L.append(name)
     return L
 
-def getTitle():
-    inputFolder = "images"
-    for filename in os.listdir(inputFolder):
-        if (filename.endswith('png') and not 'default' in filename):
-            inputImg = inputFolder + '/' + filename
-    title = readTitle(inputImg)
-    print('Recognized title: ' + title)
 
-    dbTitles = getDBTitles()
-    print('Database titles: ', dbTitles)
-
-    scoreTitle = matchTitle(title, dbTitles)
-    print('Most closely resembled title in database: ' + scoreTitle)
-
-    return scoreTitle
-
-def matchTitle(inputTitle, L):
+def _matchTitle(inputTitle, L):
     maxRatio = 0
     scoreTitle = None
     for title in L:
@@ -214,34 +212,67 @@ def matchTitle(inputTitle, L):
             scoreTitle = title
     return scoreTitle
 
+
+def _getTitle():
+    mediaFolder = "images"
+    for filename in os.listdir(settings.MEDIA_ROOT):
+        if (filename.endswith('.png') and not 'default' in filename):
+            img_path = os.path.join(settings.MEDIA_ROOT, filename)
+    img_title = _readTitle(img_path)
+    print('Recognized title: ' + img_title)
+
+    db_titles = _getDBTitles()
+    print('Database titles: ', db_titles)
+
+    score_title = _matchTitle(img_title, db_titles)
+    print('Most closely resembled title in database: ' + score_title)
+
+    return score_title
+
+
 def add_score(request):
+    def _send_title(title):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST, PORT))
+            s.sendall(title.encode('utf-8'))
+            reply = s.recv(1024)
+            if not reply != b"success":
+                print("ERROR!!!")
+                return
+            print("SUCCESS sending title to python script.")
+
     context = {}
     new_score = Score(scoreName="temp")
     form = ScoreForm(request.POST, request.FILES, instance=new_score)
     if not form.is_valid():
         context['form'] = form
-    else:
-        pic = form.cleaned_data['pic']
-        print('Uploaded picture: {} (type={})'.format(pic, type(pic)))
+        context['scores'] = request.user.profile.score_set.all()
+        return render(request, 'pageFlipper/select.html', context)
+    
+    pic = form.cleaned_data['pic']
+    print('Uploaded sheet music: {} (type={})'.format(pic, type(pic)))
 
-        new_score.content_type = form.cleaned_data['pic'].content_type
-        form.save()
+    new_score.content_type = form.cleaned_data['pic'].content_type
+    form.save()
 
-        title = getTitle()
-        print(title)
-        new_score.scoreName = title
-        new_score.pic.delete()
+    title = _getTitle()
+    print("recognized sheet music title is: {}".format(title))
+    _send_title(title)
 
-        context['form'] = ScoreForm()
-        request.user.profile.scores.add(new_score)
-        return redirect('display')
+    new_score.scoreName = title
+    new_score.pic.delete()
 
-    return render(request, 'pageFlipper/display.html', context)
+    context['form'] = ScoreForm()
+    request.user.profile.score_set.add(new_score)
+    return redirect('display')
 
 
-def displaypage(request):
+def display_page(request):
     context = {}
     return render(request, 'pageFlipper/display.html', context)
+
+def flip_page(request):
+    pass
 
 def homepage(request):
     context = {}
