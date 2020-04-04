@@ -16,6 +16,11 @@ import pprint as pp
 from fractions import Fraction
 from itertools import permutations, combinations
 
+import socket
+
+HOST = "127.0.0.1"
+PORT = 65432
+
 NOTE_IND = 0
 MSG_TYPE = 1
 NOTE_NUM = 2 
@@ -23,6 +28,9 @@ NOTE = 3
 VELOCITY = 4 
 DELTA_TICK = 5
 GLOBAL_TICK = 6
+
+WINDOW = 5
+STATIC_DIR = "../static/"
 
 ############### Matching Utils ####################
 def createCSVFromListOfDict(l, csv_path):
@@ -387,12 +395,42 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 					prev_pos = pos
 					start_ticks = pygame.time.get_ticks() #starter tick
 			
-				
+
+class OPT:
+	def __init__(self, score, window, static_dir):
+		self.score = score
+		self.window = window
+		self.static_dir = static_dir
+
+
 def main():
-	############get command line arguments############
-	opts = get_options()
-	# Pretty print the run args
-	pp.pprint(vars(opts))
+	
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+		s.bind((HOST, PORT))
+		s.listen()
+		print("Waiting for Django server to connect.........")
+		conn, addr = s.accept()
+		print("Connected!")
+
+		title = None
+		while True:
+			title = conn.recv(1024)
+			if not title:
+				print("Received Nothing")
+				break
+			reply = bytearray()
+			reply.append(1)
+			conn.sendall(reply)
+			print("received title is : {}".format(title))
+			break
+
+	# opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
+
+	# ############get command line arguments############
+	# opts = get_options()
+	# # Pretty print the run args
+	# pp.pprint(vars(opts))
+	
 
 	############prepare midi file#####################
 	midi_file_name = opts.score
@@ -421,6 +459,8 @@ def main():
 
 	run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list)
 
+	## TODO
+	
 	return
 
 
