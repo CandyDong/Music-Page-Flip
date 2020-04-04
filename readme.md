@@ -2,7 +2,7 @@
 
 ## How to Run the Web Application Along with the MIDI Tracker Program
 
-## Prepopulating database with RPI data
+### Prepopulating database with RPI data
 
 Open up commandline in Lily_Du/develop/Web, and write RPI data in pageFlipper/fixtures/rpis.json to be loaded to database
 
@@ -10,13 +10,13 @@ Open up commandline in Lily_Du/develop/Web, and write RPI data in pageFlipper/fi
 python3 manage.py loaddata rpis.json
 ```
 
-## Run the Web Application
+### Run the Web Application
 
 ```bash
 python3 manage.py runserver
 ```
 
-## Run the MIDI tracker program
+### Run the MIDI tracker program
 
 Open up another commandline in Candy_Dong/midiTracker and type
 
