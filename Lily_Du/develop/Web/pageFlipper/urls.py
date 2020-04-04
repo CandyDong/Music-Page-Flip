@@ -17,5 +17,6 @@ urlpatterns = [
     path('select-score', views.select_score, name='select-score'),
     path('display', views.display_page, name='display'),
     path('add-score', views.add_score, name='add-score'),
-    path('flip-page', views.flip_page, name='flip-page')
+    path('flip-page', views.flip_page, name='flip-page'),
+    path('update-page', views.update_page),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

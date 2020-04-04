@@ -1,10 +1,12 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
-    <div>
-        {{score.scoreName}}
-    </div>
-    <div class="img-container">
-    	<img src=" {{score.path}} ">
+    <div id="ajax-refresh">
+        <div id="score-name" data="{{ score_name }}">
+            {{score_name}}
+        </div>
+        <div class="img-container">
+        	<img src=" {{score_path}} ">
+        </div>
     </div>
     <form action="{% url 'disconnect-rpi' %}" method="post">
         <button type="submit">
@@ -12,5 +14,32 @@
         </button>
         {% csrf_token %}
     </form>
+
+    <script type="text/javascript">   
+    $(document).ready(function() {
+        score_name = $('#score-name').attr("data");
+        setInterval(function(){
+            console.log(score_name);
+            $.ajax(
+            {
+                type: "GET",
+                url: "update-page",
+                data: {
+                    score_name: score_name
+                },
+                success: function (response) {
+                    console.log(response)
+                    $('#ajax-refresh').html(
+                        "<div id='score-name' data=" + response.score_name +
+                        ">" + response.score_name + 
+                        "</div><div class='img-container'>" +
+                        "<img src=" + response.path + "></div>");
+                }
+            });
+       },500);
+    });
+
+</script>
+
     
 {% endblock %}

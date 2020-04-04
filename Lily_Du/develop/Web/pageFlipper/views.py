@@ -27,6 +27,7 @@ from django.db import transaction
 from django.utils import timezone
 
 import json
+from django.http import JsonResponse
 
 
 import os
@@ -315,9 +316,8 @@ def display_page(request):
     score_name = request.GET.get("score_name")
     page = request.GET.get("page")
     score = Score.objects.get(scoreName=score_name)
-    print("score.path: {}".format(score.path))
     return render(request, 'pageFlipper/display.html', \
-                        {"score": score})
+                        {"score_name": score.scoreName, "score_path": score.path})
 
 
 @csrf_exempt
@@ -344,6 +344,15 @@ def flip_page(request):
                                 "page": int(flip_to)})
     url = '{}?{}'.format(base_url, query_string) 
     return redirect(url)
+
+
+def update_page(request):
+    if request.method == "GET" and request.is_ajax():
+        score_name = request.GET["score_name"]
+        score = Score.objects.get(scoreName=score_name)
+        return JsonResponse({"score_name": score.scoreName, "path": score.path})
+    else:
+        return HttpResponseBadRequest(u"Invalid Request") 
 
 
 def homepage(request):
