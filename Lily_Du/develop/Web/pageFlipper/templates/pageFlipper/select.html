@@ -23,5 +23,9 @@
         </p>
         {% csrf_token %}
     </form>
-    
+    {% if message %}
+        <div>
+            {{message}}
+        </div>
+    {% endif %}
 {% endblock %}

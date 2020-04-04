@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, Http404, HttpResponseBadRequest
+from django.views.decorators.csrf import csrf_exempt
 
 from django.shortcuts import render, redirect
 from django.urls import reverse
@@ -24,6 +25,8 @@ from django.core.files import File
 
 from django.db import transaction
 from django.utils import timezone
+
+import json
 
 
 import os
@@ -121,11 +124,24 @@ def disconnect_rpi(request):
 
 
 def select_score(request):
+    def _send_title(title):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((HOST, PORT))
+            s.sendall(title.encode('utf-8'))
+            reply = s.recv(1024)
+            if not reply != 1:
+                print("ERROR!!!")
+                return
+            print("SUCCESS sending title to python script.")
     context = {}
     if request.POST:
         score_name = request.POST['selected_score']
+        score_path = os.path.join("pageFlipper", settings.MEDIA_URL, \
+                            score_name, score_name+"_1.png")
+        _send_title(score_name)
         base_url = reverse('display')  
-        query_string =  urlencode({'score_name': score_name})  
+        query_string =  urlencode({"score_name": score_name, \
+                                    "page": 1})  
         url = '{}?{}'.format(base_url, query_string) 
         return redirect(url)
     return redirect('select')
@@ -243,10 +259,10 @@ def add_score(request):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST, PORT))
             s.sendall(title.encode('utf-8'))
-            # reply = s.recv(1024)
-            # if not reply != 1:
-            #     print("ERROR!!!")
-            #     return
+            reply = s.recv(1024)
+            if not reply != 1:
+                print("ERROR!!!")
+                return
             print("SUCCESS sending title to python script.")
 
     context = {}
@@ -265,6 +281,15 @@ def add_score(request):
 
     title = _getTitle()
     print("recognized sheet music title is: {}".format(title))
+
+    old_scores = Score.objects.all().filter(scoreName=title)
+    if len(old_scores) > 0:
+        context['form'] = form
+        context['scores'] = request.user.profile.score_set.all()
+        context["message"] = "Score with same name has already been uploaded. \
+                            Please select it from the dropdown box."
+        return render(request, 'pageFlipper/select.html', context)
+
     _send_title(title)
 
     new_score.scoreName = title
@@ -280,18 +305,46 @@ def add_score(request):
     
     request.user.profile.score_set.add(new_score)
     base_url = reverse('display')  
-    query_string =  urlencode({'score_name': title})  
+    query_string =  urlencode({"score_name": new_score.scoreName, \
+                                "page": 1})  
     url = '{}?{}'.format(base_url, query_string) 
     return redirect(url)
 
 
 def display_page(request):
     score_name = request.GET.get("score_name")
-    score = Score.objects.all().filter(scoreName=score_name).first()
-    return render(request, 'pageFlipper/display.html', {"score": score})
+    page = request.GET.get("page")
+    score = Score.objects.get(scoreName=score_name)
+    print("score.path: {}".format(score.path))
+    return render(request, 'pageFlipper/display.html', \
+                        {"score": score})
 
+
+@csrf_exempt
 def flip_page(request):
-    pass
+    if request.method != "POST":
+        return HttpResponseBadRequest(u"Invalid Request") 
+    # print(json.loads(request.body.decode('utf-8')))
+    title = request.POST.get("score_name")
+    print("title: {}".format(title))
+    flip_to = request.POST.get("flip_to")
+    score = Score.objects.get(scoreName=title)
+    new_path = os.path.join(settings.MEDIA_URL, \
+                            title, title+"_{}.png".format(flip_to))
+    with open(os.path.join("pageFlipper", new_path), encoding = "ISO-8859-1") as f:
+        wrapped_file = File(f)
+        score.pic = wrapped_file
+        score.path = new_path
+        score.save()
+
+    print("new_path: {}".format(new_path))
+
+    base_url = reverse('display')  
+    query_string =  urlencode({"score_name": score.scoreName, \
+                                "page": int(flip_to)})
+    url = '{}?{}'.format(base_url, query_string) 
+    return redirect(url)
+
 
 def homepage(request):
     context = {}
