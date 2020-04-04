@@ -227,7 +227,7 @@ def _getTitle():
     score_title = _matchTitle(img_title, db_titles)
     print('Most closely resembled title in database: ' + score_title)
 
-    return score_title
+    return score_title, img_path
 
 
 def add_score(request):
@@ -255,12 +255,13 @@ def add_score(request):
     new_score.content_type = form.cleaned_data['pic'].content_type
     form.save()
 
-    title = _getTitle()
+    title, img_path = _getTitle()
     print("recognized sheet music title is: {}".format(title))
     _send_title(title)
 
     new_score.scoreName = title
     new_score.pic.delete()
+    os.remove(img_path)
 
     context['form'] = ScoreForm()
     request.user.profile.score_set.add(new_score)
