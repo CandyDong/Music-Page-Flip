@@ -3,6 +3,7 @@ import pygame.midi
 from pygame.locals import *
 
 import os
+import sys
 import numpy as np
 import math
 import time
@@ -16,10 +17,19 @@ import pprint as pp
 from fractions import Fraction
 from itertools import permutations, combinations
 
+import threading
+import ctypes 
+
 import socket, requests
 
 HOST = "127.0.0.1"
 PORT = 65432
+
+TITLE = 0x01
+END_SESSION = 0x02
+REPLY = 0x03
+
+FLIP_OFFSET = 10
 
 NOTE_IND = 0
 MSG_TYPE = 1
@@ -31,6 +41,7 @@ GLOBAL_TICK = 6
 
 WINDOW = 5
 STATIC_DIR = "../static/"
+
 
 ############### Matching Utils ####################
 def createCSVFromListOfDict(l, csv_path):
@@ -153,6 +164,8 @@ def _getSubsets(l, n):
 def getFlipInfo(filename):
 	with open(filename + ".json") as f:
 		data = json.load(f)
+	for i, _ in enumerate(data["page"]):
+		data["page"][i] -= FLIP_OFFSET
 	return data
 
 
@@ -338,7 +351,6 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 
 	return minDist, pos, tick, flip, flip_to
 
-
 ############### MIDI Utils ########################
 
 def numberToNote(num):
@@ -355,15 +367,17 @@ def isNoteOn(status, velocity):
 	# Note off: Status byte: 1000 CCCC / 0x80 ..
 	return (status == 144) and (velocity != 0)
 
-############### Run ########################
-	
-
-def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
+############### Tracker ##########################
+def run(opts, input_device, orig_vecs, 
+		orig_flip_info, orig_tick_measure_list,
+		func_reset):
 	live_notes = []
 	prev_pos = 0
 	start_ticks = pygame.time.get_ticks() #starter tick
 
 	while True:
+		if func_reset():
+			break
 		if input_device.poll():
 			m_e = input_device.read(1)[0] 
 			data = m_e[0] # midi info
@@ -379,14 +393,11 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 			if seconds > 2: # if more than 1 second
 				if len(live_notes) > opts.window:
 					cur_notes = live_notes[-opts.window:]
-					# print("live_notes:{}\n{}".format(\
-					# 	list(map(lambda num: numberToNote(num), live_notes)),\
-					# 	live_notes))
 					
-					minDist, pos, tick, flip, flip_to = matchDFs(cur_notes, orig_vecs, orig_flip, \
+					minDist, pos, tick, flip, flip_to = \
+						matchDFs(cur_notes, orig_vecs, \
+						orig_flip_info, \
 						opts.window, prev_pos)
-					# print("minDist: {}, pos: {}, tick: {} ".format(minDist, pos, tick))
-
 					# find position
 					num_measure_passed, fraction = \
 					getPositionFromTick(orig_tick_measure_list, tick)
@@ -401,6 +412,46 @@ def run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list):
 					start_ticks = pygame.time.get_ticks() #starter tick
 
 
+############### Threading ########################
+class tracker_thread(threading.Thread):
+	def __init__(self, opts, input_device, orig_vecs, orig_flip_info, 
+					orig_tick_measure_list, func_reset):
+		threading.Thread.__init__(self)
+		self.opts = opts
+		self.input_device = input_device
+		self.orig_vecs = orig_vecs
+		self.orig_flip_info = orig_flip_info
+		self.orig_tick_measure_list = orig_tick_measure_list
+		self.func_reset = func_reset
+
+	def run(self):
+		try:
+			print("tracker program running.......")
+			run(self.opts, self.input_device, self.orig_vecs, \
+				self.orig_flip_info, self.orig_tick_measure_list, \
+				self.func_reset)
+		finally: 
+			print("tracker program ended!")
+			return
+
+	def get_id(self):
+		if hasattr(self, '_thread_id'):
+			return self._thread_id
+		for thread_id, thread in threading._active.items():
+			if thread is self:
+				return thread_id
+
+	def raise_exception(self):
+		thread_id = self.get_id()
+		res = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 
+			  ctypes.py_object(SystemExit)) 
+		if res > 1:
+			ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0) 
+			print('Exception raise failure') 
+
+
+#################### TCP Requests #####################
+
 def make_post_request(opts, flip_to):
 	# defining the api-endpoint  
 	API_ENDPOINT = "http://{}:8000/pageFlipper/flip-page".format(HOST)
@@ -413,7 +464,23 @@ def make_post_request(opts, flip_to):
 	  
 	# sending post request and saving response as response object 
 	r = requests.post(url = API_ENDPOINT, data = data)
-			
+
+
+def receive_title(s, conn):
+	title = None
+	while True:
+		msg = conn.recv(1024)
+		if msg[0] == TITLE:
+			title = msg[1:].strip()
+			print("received title is : {}".format(title))
+
+			reply = bytearray()
+			reply.append(REPLY)
+			reply.append(1)
+			conn.sendall(reply)
+			break
+	return title
+
 
 class OPT:
 	def __init__(self, score, window, static_dir):
@@ -423,72 +490,59 @@ class OPT:
 
 
 def main():
-	
-	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-		s.bind((HOST, PORT))
-		s.listen()
-		print("Waiting for Django server to connect.........")
-		conn, addr = s.accept()
-		print("Connected!")
+	pygame.init()
+	pygame.midi.init()
+	input_id = pygame.midi.get_default_input_id() # gets the first connected device
+	input_device = pygame.midi.Input(input_id)
+	print("midi input device connected: {}".format(pygame.midi.get_device_info(input_id)))
 
-		title = None
-		while True:
-			title = conn.recv(1024)
-			if not title:
-				print("Received Nothing")
-				break
-			reply = bytearray()
-			reply.append(1)
-			conn.sendall(reply)
-			print("received title is : {}".format(title))
-			break
-
-	opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+	s.bind((HOST, PORT))
+	s.listen()
+	print("Waiting for Django server to connect.........")
+	conn, addr = s.accept()
+	print("Connected!")
 
 	# ############get command line arguments############
 	# opts = get_options()
 	# # Pretty print the run args
 	# pp.pprint(vars(opts))
-	
+	try:
+		while True:
+			title = receive_title(s, conn)
+			opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
+			RESET = False
+			############prepare midi file#####################
+			midi_file_name = opts.score
+			midi_file_path = os.path.join(opts.static_dir, midi_file_name + ".mid")
+			f = mido.MidiFile(midi_file_path)
+			orig_notes = getNotes(f)
+			orig_flip_info = getFlipInfo(os.path.join(opts.static_dir, midi_file_name))
+			orig_vecs = getSeqVecs(orig_notes, window=opts.window)
+			orig_tick_measure_list = getTickMeasureDict(f)
 
-	############prepare midi file#####################
-	midi_file_name = opts.score
-	midi_file_path = os.path.join(opts.static_dir, midi_file_name + ".mid")
-	f = mido.MidiFile(midi_file_path)
-	orig_notes = getNotes(f)
-	orig_flip = getFlipInfo(os.path.join(opts.static_dir, midi_file_name))
-	orig_vecs = getSeqVecs(orig_notes, window=opts.window)
-	# createCSVFromListOfDict(orig_vecs, os.path.join(opts.static_dir, midi_file_name, "info.csv"))
+			tracker = tracker_thread(opts, input_device, orig_vecs, 
+									orig_flip_info, orig_tick_measure_list,
+									lambda: RESET)
+			tracker.start()
+			while True:
+				msg = conn.recv(1024)
+				if msg[0] == END_SESSION:
+					RESET = True
+					tracker.join()
+					reply = bytearray()
+					reply.append(REPLY)
+					reply.append(1)
+					conn.sendall(reply)
+					break
+			
+	finally:
+		s.close()
 
-	orig_tick_measure_list = getTickMeasureDict(f)
-
-	# print("tick_measure_list: {}".format(orig_tick_measure_list))
-
-	pygame.init()
-	pygame.midi.init()
-
-	# # prints connected midi devices
-	# for n in range(pygame.midi.get_count()):
-	#     # (interf, name, input, output, opened) 
-	#     print(n,pygame.midi.get_device_info(n))
-
-	input_id = pygame.midi.get_default_input_id() # gets the first connected device
-	input_device = pygame.midi.Input(input_id)
-	print("midi input device connected: {}".format(pygame.midi.get_device_info(input_id)))
-
-	run(opts, input_device, orig_vecs, orig_flip, orig_tick_measure_list)
-	
 	return
 
 
-
-	
-
 if __name__ == '__main__':
 	main()
-"""
-reads num_events midi events from the buffer.
-Input.read(num_events): return midi_event_list
-Reads from the Input buffer and gives back midi events. [[[status,data1,data2,data3],timestamp],
- [[status,data1,data2,data3],timestamp],...]
-"""
+

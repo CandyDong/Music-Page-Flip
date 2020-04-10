@@ -8,7 +8,7 @@
         	<img src=" {{score_path}} ">
         </div>
     </div>
-    <form action="{% url 'disconnect-rpi' %}" method="post">
+    <form action="{% url 'disconnect-rpi' score_name %}" method="post">
         <button type="submit">
             End Session
         </button>

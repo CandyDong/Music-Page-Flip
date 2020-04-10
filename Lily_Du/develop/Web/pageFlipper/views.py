@@ -38,8 +38,15 @@ from fuzzywuzzy import fuzz
 import PIL
 import socket
 
+TITLE = 0x01
+END_SESSION = 0x02
+REPLY = 0x03
+
 HOST = "127.0.0.1"
 PORT = 65432
+S = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+S.connect((HOST, PORT))
+
 
 def login_action(request):
     context = {}
@@ -98,6 +105,7 @@ def register_action(request):
     login(request, new_user)
     return redirect(reverse('homepage'))
 
+
 def connect_rpi(request):
     context = {}
     available_rpis = RPI.objects.all().filter(in_use=False)
@@ -106,40 +114,44 @@ def connect_rpi(request):
         rpi_to_use = available_rpis.first()
         print("rpi_to_use: {}".format(rpi_to_use))
         rpi_to_use.in_use = True
-        request.user.profile.rpi = rpi_to_use
-        request.user.profile.save()
+        rpi_to_use.user_profile = request.user.profile
+        rpi_to_use.save()
         return redirect('select')
 
     context['message'] = "All rpis are in use now, please try again later."
     return render(request, 'pageFlipper/homepage.html', context)
 
-##TODO !!!!!
-def disconnect_rpi(request):
-    context = {}
-    available_rpi = RPI.objects.get(pk=1)
-    available_rpi.in_use = '0'
-    available_rpi.save()
-    request.user.profile.rpiId = ''
-    request.user.profile.save()
-    return render(request, 'pageFlipper/homepage.html', context)
+
+def disconnect_rpi(request, score_name):
+    user_profile = request.user.profile
+    print(user_profile)
+    rpi_in_use = RPI.objects.get(user_profile=user_profile)
+    rpi_in_use.in_use = False
+    rpi_in_use.user_profile = None
+    rpi_in_use.save()
+
+    score = Score.objects.get(scoreName=score_name)
+    score.pic.delete()
+    with open(os.path.join("pageFlipper", settings.MEDIA_URL, \
+                            score_name, score_name+"_1.png"), \
+                            encoding = "ISO-8859-1") as f:
+        wrapped_file = File(f)
+        score.pic = wrapped_file
+        score.path = os.path.join(settings.MEDIA_URL, \
+                                    score_name, score_name+"_1.png")
+        score.save()
+
+    _send(END_SESSION, None)
+    return render(request, 'pageFlipper/homepage.html')
 
 
 def select_score(request):
-    def _send_title(title):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST, PORT))
-            s.sendall(title.encode('utf-8'))
-            reply = s.recv(1024)
-            if not reply != 1:
-                print("ERROR!!!")
-                return
-            print("SUCCESS sending title to python script.")
     context = {}
     if request.POST:
         score_name = request.POST['selected_score']
         score_path = os.path.join("pageFlipper", settings.MEDIA_URL, \
                             score_name, score_name+"_1.png")
-        _send_title(score_name)
+        _send(TITLE, score_name)
         base_url = reverse('display')  
         query_string =  urlencode({"score_name": score_name, \
                                     "page": 1})  
@@ -256,16 +268,6 @@ def _getTitle():
 
 
 def add_score(request):
-    def _send_title(title):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((HOST, PORT))
-            s.sendall(title.encode('utf-8'))
-            reply = s.recv(1024)
-            if not reply != 1:
-                print("ERROR!!!")
-                return
-            print("SUCCESS sending title to python script.")
-
     context = {}
     new_score = Score(scoreName="temp")
     form = ScoreForm(request.POST, request.FILES, instance=new_score)
@@ -291,7 +293,7 @@ def add_score(request):
                             Please select it from the dropdown box."
         return render(request, 'pageFlipper/select.html', context)
 
-    _send_title(title)
+    _send(TITLE, title)
 
     new_score.scoreName = title
     new_score.pic.delete()
@@ -363,3 +365,33 @@ def profile(request):
     context = {}
     context['scores'] = request.user.profile.scores.all()
     return render(request, 'pageFlipper/profile.html', context)
+
+
+###########TCP communication with the tracker program################
+def _send(content_id, content):
+    global S   
+    msg = bytearray()
+    msg.append(content_id)
+    if content_id != END_SESSION:
+        msg += content.encode('utf-8')
+
+    S.sendall(msg)
+    while True:
+        reply = S.recv(1024)
+        if reply[0] == REPLY:
+            if reply[1] == 1:
+                print("SUCCESS sending title to python script.")
+            else:
+                print("ERROR sending title to python script.")
+            return
+
+        
+
+
+
+
+
+
+
+
+
