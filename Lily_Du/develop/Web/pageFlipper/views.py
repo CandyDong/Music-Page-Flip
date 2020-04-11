@@ -12,8 +12,6 @@ from django.contrib.auth import authenticate, login, logout
 
 from django.utils import timezone
 
-from .signals import flip_page_signal
-
 from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm
 from pageFlipper.models import Profile, Score, RPI
 
@@ -69,7 +67,15 @@ def login_action(request):
                             password=form.cleaned_data['password'])
 
     login(request, new_user)
-    return redirect(reverse('homepage'))
+
+    # if user is already linked to a rpi, jump to the session page
+    user_profile = request.user.profile
+    try:
+        user_rpi = RPI.objects.get(user_profile=user_profile)
+    except RPI.DoesNotExist:
+        return redirect(reverse('homepage'))
+
+    return redirect(reverse('select'))
 
 def logout_action(request):
     logout(request)
@@ -103,6 +109,7 @@ def register_action(request):
                             password=form.cleaned_data['password'])
 
     login(request, new_user)
+
     return redirect(reverse('homepage'))
 
 
@@ -124,7 +131,6 @@ def connect_rpi(request):
 
 def disconnect_rpi(request, score_name):
     user_profile = request.user.profile
-    print(user_profile)
     rpi_in_use = RPI.objects.get(user_profile=user_profile)
     rpi_in_use.in_use = False
     rpi_in_use.user_profile = None
@@ -338,8 +344,6 @@ def flip_page(request):
         score.pic = wrapped_file
         score.path = new_path
         score.save()
-
-    print("new_path: {}".format(new_path))
 
     base_url = reverse('display')  
     query_string =  urlencode({"score_name": score.scoreName, \
