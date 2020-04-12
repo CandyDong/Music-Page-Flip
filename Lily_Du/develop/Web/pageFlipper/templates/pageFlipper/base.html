@@ -23,6 +23,11 @@
         <div class="name">
             {{user.username}}
         </div>
+        <form method="post" action="{% url 'logout' %}">
+            <button type="submit"></button>
+            {% csrf_token %}
+        </form>
+
         {% block content %}
         {% endblock %}
     </body>
