@@ -156,8 +156,12 @@ def select_score(request):
     context = {}
     if request.POST:
         score_name = request.POST['selected_score']
-        score_path = os.path.join("pageFlipper", settings.MEDIA_URL, \
+        score_path = os.path.join(settings.MEDIA_URL, \
                             score_name, score_name+"_1.png")
+        score = Score.objects.get(scoreName=score_name)
+        score.path = score_path
+        score.save()
+
         _send(TITLE, score_name)
         base_url = reverse('display')  
         query_string =  urlencode({"score_name": score_name, \
