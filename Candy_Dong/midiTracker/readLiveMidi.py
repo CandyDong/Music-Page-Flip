@@ -515,6 +515,7 @@ def main():
 		elif msg[0] == END_SESSION:
 			print("resetting session.............")
 			if (tracker == None):
+				print("session reset.")
 				continue
 			tracker.reset.set()
 			tracker.join()
