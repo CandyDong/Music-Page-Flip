@@ -27,7 +27,6 @@ PORT = 65432
 
 TITLE = 0x01
 END_SESSION = 0x02
-REPLY = 0x03
 
 FLIP_OFFSET = 10
 
@@ -200,7 +199,7 @@ def getNoteGroups(notes):
 
 	return noteGroups
 
-def getSeqVecs(notes, window=10):
+def getSeqVecs(notes, window=5):
 	info = []
 	
 	noteGroups = getNoteGroups(notes)
@@ -258,7 +257,7 @@ def getSeqVecs(notes, window=10):
 
 
 # prev defines the point of match at the last matching
-def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
+def matchDFs(live_notes, orig_vecs, orig_flip, prev_pos):
 	minDist, pos, tick, flip = None, None, None, False
 
 	# search from the prev point to left/right simultaneously
@@ -268,7 +267,7 @@ def matchDFs(live_notes, orig_vecs, orig_flip, window, prev_pos):
 	right_vec = orig_vecs[prev_pos+step]
 
 	while (left_vec) or (right_vec):
-		# if (step >= window*3):
+		# if (step >= WINDOW*3):
 		# 	return minDist, pos, tick
 
 		right_dist, left_dist = None, None
@@ -368,15 +367,16 @@ def isNoteOn(status, velocity):
 	return (status == 144) and (velocity != 0)
 
 ############### Tracker ##########################
-def run(opts, input_device, orig_vecs, 
+def run(title, input_device, orig_vecs, 
 		orig_flip_info, orig_tick_measure_list,
-		func_reset):
+		reset):
 	live_notes = []
 	prev_pos = 0
 	start_ticks = pygame.time.get_ticks() #starter tick
 
 	while True:
-		if func_reset():
+		if reset.isSet():
+			print("reset")
 			break
 		if input_device.poll():
 			m_e = input_device.read(1)[0] 
@@ -391,13 +391,13 @@ def run(opts, input_device, orig_vecs,
 
 			seconds = (pygame.time.get_ticks() - start_ticks)/1000 #calculate how many seconds
 			if seconds > 2: # if more than 1 second
-				if len(live_notes) > opts.window:
-					cur_notes = live_notes[-opts.window:]
+				if len(live_notes) > WINDOW:
+					cur_notes = live_notes[-WINDOW:]
 					
 					minDist, pos, tick, flip, flip_to = \
 						matchDFs(cur_notes, orig_vecs, \
 						orig_flip_info, \
-						opts.window, prev_pos)
+						prev_pos)
 					# find position
 					num_measure_passed, fraction = \
 					getPositionFromTick(orig_tick_measure_list, tick)
@@ -406,30 +406,37 @@ def run(opts, input_device, orig_vecs,
 						format(num_measure_passed+1, fraction, flip, flip_to))
 
 					if flip:
-						make_post_request(opts, flip_to)
+						make_post_request(title, flip_to)
 
 					prev_pos = pos
 					start_ticks = pygame.time.get_ticks() #starter tick
+	return
 
 
 ############### Threading ########################
 class tracker_thread(threading.Thread):
-	def __init__(self, opts, input_device, orig_vecs, orig_flip_info, 
-					orig_tick_measure_list, func_reset):
+	def __init__(self, title, input_device):
 		threading.Thread.__init__(self)
-		self.opts = opts
+		self.title = title
 		self.input_device = input_device
-		self.orig_vecs = orig_vecs
-		self.orig_flip_info = orig_flip_info
-		self.orig_tick_measure_list = orig_tick_measure_list
-		self.func_reset = func_reset
+		self.reset = threading.Event()
 
 	def run(self):
 		try:
-			print("tracker program running.......")
-			run(self.opts, self.input_device, self.orig_vecs, \
-				self.orig_flip_info, self.orig_tick_measure_list, \
-				self.func_reset)
+			############prepare midi file#####################
+			print("preparing midi meta files...........")
+			midi_file_name = self.title
+			midi_file_path = os.path.join(STATIC_DIR, midi_file_name + ".mid")
+			f = mido.MidiFile(midi_file_path)
+			orig_notes = getNotes(f)
+			orig_flip_info = getFlipInfo(os.path.join(STATIC_DIR, midi_file_name))
+			orig_vecs = getSeqVecs(orig_notes, window=WINDOW)
+			orig_tick_measure_list = getTickMeasureDict(f)
+
+			print("tracker program running.............")
+			run(self.title, self.input_device, orig_vecs, \
+				orig_flip_info, orig_tick_measure_list, \
+				self.reset)
 		finally: 
 			print("tracker program ended!")
 			return
@@ -452,12 +459,12 @@ class tracker_thread(threading.Thread):
 
 #################### TCP Requests #####################
 
-def make_post_request(opts, flip_to):
+def make_post_request(title, flip_to):
 	# defining the api-endpoint  
 	API_ENDPOINT = "http://{}:8000/pageFlipper/flip-page".format(HOST)
 
 	# data to be sent to api 
-	data = {'score_name': opts.score, 
+	data = {'score_name': title, 
 			'flip_to':flip_to+1
 			} 
 	  
@@ -465,29 +472,11 @@ def make_post_request(opts, flip_to):
 	r = requests.post(url = API_ENDPOINT, data = data)
 
 
-def receive_title(s, conn):
-	title = None
-	while True:
-		msg = conn.recv(1024)
-		if not msg:
-			print("client disconnected.")
-			raise Exception()
-		elif msg[0] == TITLE:
-			title = msg[1:].strip()
-			print("received title is : {}".format(title))
-			reply = bytearray()
-			reply.append(REPLY)
-			reply.append(1)
-			conn.sendall(reply)
-			break
-	return title
-
-
-class OPT:
-	def __init__(self, score, window, static_dir):
-		self.score = score
-		self.window = window
-		self.static_dir = static_dir
+# def send_reply(s, conn, code):
+# 	reply = bytearray()
+# 	reply.append(REPLY)
+# 	reply.append(code)
+# 	conn.sendall(reply)
 
 
 def main():
@@ -509,52 +498,29 @@ def main():
 	# opts = get_options()
 	# # Pretty print the run args
 	# pp.pprint(vars(opts))
-	title = receive_title(s, conn)
-	try:
-		while True:
-			opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
-			RESET = False
-			############prepare midi file#####################
-			midi_file_name = opts.score
-			midi_file_path = os.path.join(opts.static_dir, midi_file_name + ".mid")
-			f = mido.MidiFile(midi_file_path)
-			orig_notes = getNotes(f)
-			orig_flip_info = getFlipInfo(os.path.join(opts.static_dir, midi_file_name))
-			orig_vecs = getSeqVecs(orig_notes, window=opts.window)
-			orig_tick_measure_list = getTickMeasureDict(f)
-
-			tracker = tracker_thread(opts, input_device, orig_vecs, 
-									orig_flip_info, orig_tick_measure_list,
-									lambda: RESET)
+	tracker = None
+	
+	while True:
+		msg = conn.recv(1024)
+		if not msg:
+			print("client disconnected.")
+			s.close()
+			sys.exit()
+		elif msg[0] == TITLE:
+			title = msg[1:].strip().decode('utf-8')
+			print("received title is : {}".format(title))
+			# start program
+			tracker = tracker_thread(title, input_device)
 			tracker.start()
-			while True:
-				msg = conn.recv(1024)
-				print("msg: {}".format(msg))
-				if not msg:
-					print("client disconnected.")
-					raise Exception()
-				elif msg[0] == END_SESSION:
-					RESET = True
-					tracker.join()
-					reply = bytearray()
-					reply.append(REPLY)
-					reply.append(1)
-					conn.sendall(reply)
-					title = receive_title(s, conn)
-					break
-				elif msg[0] == TITLE:
-					title = msg[1:].strip()
-					print("received title is : {}".format(title))
-					reply = bytearray()
-					reply.append(REPLY)
-					reply.append(1)
-					conn.sendall(reply)
-					break
-			
-	finally:
-		s.close()
-
-	return
+		elif msg[0] == END_SESSION:
+			print("resetting session.............")
+			if (tracker == None):
+				continue
+			tracker.reset.set()
+			tracker.join()
+			tracker.reset.clear()
+			print("session reset.")
+		
 
 
 if __name__ == '__main__':
