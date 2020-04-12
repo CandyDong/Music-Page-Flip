@@ -124,3 +124,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "pageFlipper", "media/")
 MEDIA_URL = "media/"
 
 FIXTURE_DIRS = ["/fixtures/"]
+
+
+# Session
+# SESSION_COOKIE_AGE = 60 #equivalent to 1 minute
+
+LOGIN_URL = '/pageFlipper/'
+

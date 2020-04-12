@@ -50,6 +50,13 @@ S.connect((HOST, PORT))
 def login_action(request):
     context = {}
 
+    if request.user.is_authenticated:
+        try:
+            user_rpi = RPI.objects.get(user_profile=request.user.profile)
+        except RPI.DoesNotExist:
+            return redirect(reverse('connect-rpi'))
+        return redirect(reverse('select'))
+
     # Just display the registration form if this is a GET request.
     if request.method == 'GET':
         context['form'] = LoginForm()
@@ -78,9 +85,21 @@ def login_action(request):
 
     return redirect(reverse('select'))
 
+
+@login_required
 def logout_action(request):
+    user_profile = request.user.profile
+    try:
+        user_rpi = RPI.objects.get(user_profile=request.user.profile)
+        user_rpi.user_profile = None
+        user_rpi.in_use = False
+        user_rpi.save()
+        _send(END_SESSION, None)
+    except RPI.DoesNotExist:
+        pass
     logout(request)
     return redirect(reverse('login'))
+
 
 def register_action(request):
     context = {}
@@ -114,22 +133,27 @@ def register_action(request):
     return redirect(reverse('homepage'))
 
 
+@login_required
 def connect_rpi(request):
-    context = {}
-    available_rpis = RPI.objects.all().filter(in_use=False)
-    print("available rpi: {}".format(available_rpis))
-    if (len(available_rpis) > 0):
-        rpi_to_use = available_rpis.first()
-        print("rpi_to_use: {}".format(rpi_to_use))
-        rpi_to_use.in_use = True
-        rpi_to_use.user_profile = request.user.profile
-        rpi_to_use.save()
-        return redirect('select')
-
-    context['message'] = "All rpis are in use now, please try again later."
+    try:
+        user_rpi = RPI.objects.get(user_profile=request.user.profile)
+        return redirect(reverse('select'))
+    except RPI.DoesNotExist:
+        context = {}
+        available_rpis = RPI.objects.all().filter(in_use=False)
+        print("available rpi: {}".format(available_rpis))
+        if (len(available_rpis) > 0):
+            rpi_to_use = available_rpis.first()
+            print("rpi_to_use: {}".format(rpi_to_use))
+            rpi_to_use.in_use = True
+            rpi_to_use.user_profile = request.user.profile
+            rpi_to_use.save()
+            return redirect('select')
+        context['message'] = "All rpis are in use now, please try again later."
     return render(request, 'pageFlipper/homepage.html', context)
 
 
+@login_required
 def disconnect_rpi(request, score_name):
     user_profile = request.user.profile
     rpi_in_use = RPI.objects.get(user_profile=user_profile)
@@ -152,32 +176,41 @@ def disconnect_rpi(request, score_name):
     return render(request, 'pageFlipper/homepage.html')
 
 
+@login_required
 def select_score(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest(u"Invalid Request") 
+
     context = {}
-    if request.POST:
-        score_name = request.POST['selected_score']
-        score_path = os.path.join(settings.MEDIA_URL, \
-                            score_name, score_name+"_1.png")
-        score = Score.objects.get(scoreName=score_name)
-        score.path = score_path
-        score.save()
 
-        _send(TITLE, score_name)
-        base_url = reverse('display')  
-        query_string =  urlencode({"score_name": score_name, \
-                                    "page": 1})  
-        url = '{}?{}'.format(base_url, query_string) 
-        return redirect(url)
-    return redirect('select')
+    score_name = request.POST['selected_score']
+    score_path = os.path.join(settings.MEDIA_URL, \
+                        score_name, score_name+"_1.png")
+    score = Score.objects.get(scoreName=score_name)
+    score.path = score_path
+    score.save()
+
+    _send(TITLE, score_name)
+    base_url = reverse('display')  
+    query_string =  urlencode({"score_name": score_name, \
+                                "page": 1})  
+    url = '{}?{}'.format(base_url, query_string) 
+    return redirect(url)
 
 
+@login_required
 def select_page(request):
+    try:
+        user_rpi = RPI.objects.get(user_profile=request.user.profile)
+    except RPI.DoesNotExist:
+        return redirect(reverse('homepage'))
+        
     context = {}
     context['scores'] = request.user.profile.score_set.all()
     context['form'] = ScoreForm()
     return render(request, 'pageFlipper/select.html', context)
 
-
+@login_required
 def add_score(request):
     context = {}
     new_score = Score(scoreName="temp")
@@ -224,8 +257,13 @@ def add_score(request):
     url = '{}?{}'.format(base_url, query_string) 
     return redirect(url)
 
-
+@login_required
 def display_page(request):
+    try:
+        user_rpi = RPI.objects.get(user_profile=request.user.profile)
+    except RPI.DoesNotExist:
+        return redirect(reverse('homepage'))
+
     score_name = request.GET.get("score_name")
     page = request.GET.get("page")
     score = Score.objects.get(scoreName=score_name)
@@ -255,7 +293,7 @@ def flip_page(request):
     url = '{}?{}'.format(base_url, query_string) 
     return redirect(url)
 
-
+@login_required
 def button_flip(request):
     if request.method != "POST":
         return HttpResponseBadRequest(u"Invalid Request") 
@@ -285,9 +323,10 @@ def button_flip(request):
             score.pic = wrapped_file
             score.path = new_path
             score.save()
+
     return JsonResponse({"score_name": score.scoreName, "path": score.path})
     
-
+@login_required
 def update_page(request):
     if request.method == "GET" and request.is_ajax():
         score_name = request.GET["score_name"]
@@ -296,16 +335,16 @@ def update_page(request):
     else:
         return HttpResponseBadRequest(u"Invalid Request") 
 
-
+@login_required
 def homepage(request):
     context = {}
     return render(request, 'pageFlipper/homepage.html', context)
 
+@login_required
 def profile(request):
     context = {}
     context['scores'] = request.user.profile.scores.all()
     return render(request, 'pageFlipper/profile.html', context)
-
 
 ###########TCP communication with the tracker program################
 def _send(content_id, content):
@@ -314,19 +353,17 @@ def _send(content_id, content):
     msg.append(content_id)
     if content_id != END_SESSION:
         msg += content.encode('utf-8')
-
     S.sendall(msg)
-    while True:
-        reply = S.recv(1024)
-        if reply[0] == REPLY:
-            if reply[1] == 1:
-                print("SUCCESS sending title to python script.")
-            else:
-                print("ERROR sending title to python script.")
-            return
+    # while True:
+    #     reply = S.recv(1024)
+    #     if reply[0] == REPLY:
+    #         if reply[1] == 1:
+    #             print("SUCCESS")
+    #         else:
+    #             print("ERROR")
+    #         return
 
         
-
 
 
 

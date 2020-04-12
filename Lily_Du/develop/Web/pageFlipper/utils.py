@@ -96,3 +96,4 @@ def _getTitle():
             os.remove(os.path.join(settings.MEDIA_ROOT, filename))
 
     return score_title
+
