@@ -456,7 +456,6 @@ def make_post_request(opts, flip_to):
 	# defining the api-endpoint  
 	API_ENDPOINT = "http://{}:8000/pageFlipper/flip-page".format(HOST)
 
-	  
 	# data to be sent to api 
 	data = {'score_name': opts.score, 
 			'flip_to':flip_to+1
@@ -470,10 +469,12 @@ def receive_title(s, conn):
 	title = None
 	while True:
 		msg = conn.recv(1024)
-		if msg[0] == TITLE:
+		if not msg:
+			print("client disconnected.")
+			raise Exception()
+		elif msg[0] == TITLE:
 			title = msg[1:].strip()
 			print("received title is : {}".format(title))
-
 			reply = bytearray()
 			reply.append(REPLY)
 			reply.append(1)
@@ -508,9 +509,9 @@ def main():
 	# opts = get_options()
 	# # Pretty print the run args
 	# pp.pprint(vars(opts))
+	title = receive_title(s, conn)
 	try:
 		while True:
-			title = receive_title(s, conn)
 			opts = OPT(title.decode("utf-8"), WINDOW, STATIC_DIR)
 			RESET = False
 			############prepare midi file#####################
@@ -528,9 +529,22 @@ def main():
 			tracker.start()
 			while True:
 				msg = conn.recv(1024)
-				if msg[0] == END_SESSION:
+				print("msg: {}".format(msg))
+				if not msg:
+					print("client disconnected.")
+					raise Exception()
+				elif msg[0] == END_SESSION:
 					RESET = True
 					tracker.join()
+					reply = bytearray()
+					reply.append(REPLY)
+					reply.append(1)
+					conn.sendall(reply)
+					title = receive_title(s, conn)
+					break
+				elif msg[0] == TITLE:
+					title = msg[1:].strip()
+					print("received title is : {}".format(title))
 					reply = bytearray()
 					reply.append(REPLY)
 					reply.append(1)
