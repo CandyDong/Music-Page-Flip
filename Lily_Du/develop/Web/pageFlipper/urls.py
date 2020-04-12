@@ -18,5 +18,6 @@ urlpatterns = [
     path('display', views.display_page, name='display'),
     path('add-score', views.add_score, name='add-score'),
     path('flip-page', views.flip_page, name='flip-page'),
+    path('button-flip', views.button_flip, name='button-flip'),
     path('update-page', views.update_page),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

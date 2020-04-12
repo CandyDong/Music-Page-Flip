@@ -8,6 +8,9 @@
         	<img src=" {{score_path}} ">
         </div>
     </div>
+    <button class="flip_button" id="flip_button_b" type="submit">Prev</button>
+    <button class="flip_button" id="flip_button_f" type="submit">Next</button>
+
     <form action="{% url 'disconnect-rpi' score_name %}" method="post">
         <button type="submit">
             End Session
@@ -15,31 +18,66 @@
         {% csrf_token %}
     </form>
 
-    <script type="text/javascript">   
-    $(document).ready(function() {
-        score_name = $('#score-name').attr("data");
-        setInterval(function(){
-            console.log(score_name);
+    <script type="text/javascript">  
+    var score_name = $('#score-name').attr("data");
+    var update = function() {
+                    setInterval(function(){
+                        $.ajax(
+                        {
+                            type: "GET",
+                            url: "update-page",
+                            data: {
+                                score_name: score_name
+                            },
+                            success: function (response) {
+                                $('#ajax-refresh').html(
+                                    "<div id='score-name' data=" + response.score_name +
+                                    ">" + response.score_name + 
+                                    "</div><div class='img-container'>" +
+                                    "<img src=" + response.path + "></div>");
+                            }
+                        });
+                   },500);
+                }
+
+    $(document).ready(update);
+
+    function getCSRFToken() {
+        var cookies = document.cookie.split(";");
+        for (var i = 0; i < cookies.length; i++) {
+            c = cookies[i].trim();
+            if (c.startsWith("csrftoken=")) {
+                return c.substring("csrftoken=".length, c.length);
+            }
+        }
+        return "unknown";
+    } 
+
+    $(".flip_button").each(function() {
+        var direction = this.id.split("_")[2];
+        $(this).bind("click", function() {
             $.ajax(
-            {
-                type: "GET",
-                url: "update-page",
-                data: {
-                    score_name: score_name
-                },
-                success: function (response) {
-                    console.log(response)
-                    $('#ajax-refresh').html(
+                {
+                    type: "POST",
+                    url: "button-flip",
+                    data: {
+                        score_name: score_name,
+                        direction: direction,
+                        csrfmiddlewaretoken: getCSRFToken()
+                    },
+                    dataType : "json",
+                    success: function (response) {
+                        $('#ajax-refresh').html(
                         "<div id='score-name' data=" + response.score_name +
                         ">" + response.score_name + 
                         "</div><div class='img-container'>" +
                         "<img src=" + response.path + "></div>");
-                }
-            });
-       },500);
+                    }
+                });
+        });
     });
 
-</script>
+    </script>
 
     
 {% endblock %}
