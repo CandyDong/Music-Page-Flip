@@ -43,8 +43,8 @@ REPLY = 0x03
 
 HOST = "127.0.0.1"
 PORT = 65432
-S = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-S.connect((HOST, PORT))
+# S = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# S.connect((HOST, PORT))
 
 
 def login_action(request):
@@ -94,7 +94,7 @@ def logout_action(request):
         user_rpi.user_profile = None
         user_rpi.in_use = False
         user_rpi.save()
-        _send(END_SESSION, None)
+        # _send(END_SESSION, None)
     except RPI.DoesNotExist:
         pass
     logout(request)
@@ -172,7 +172,7 @@ def disconnect_rpi(request, score_name):
                                     score_name, score_name+"_1.png")
         score.save()
 
-    _send(END_SESSION, None)
+    # _send(END_SESSION, None)
     return render(request, 'pageFlipper/homepage.html')
 
 
@@ -190,7 +190,7 @@ def select_score(request):
     score.path = score_path
     score.save()
 
-    _send(TITLE, score_name)
+    # _send(TITLE, score_name)
     base_url = reverse('display')  
     query_string =  urlencode({"score_name": score_name, \
                                 "page": 1})  
@@ -237,7 +237,7 @@ def add_score(request):
                             Please select it from the dropdown box."
         return render(request, 'pageFlipper/select.html', context)
 
-    _send(TITLE, title)
+    # _send(TITLE, title)
 
     new_score.scoreName = title
     new_score.pic.delete()
