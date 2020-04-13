@@ -31,7 +31,7 @@ a {
   transition: all ease-in-out 200ms;
 }
 a:hover {
-  color: #333333;
+  color: #aaaaaa;
   text-decoration: none;
 }
 /*=== 3. Text Outside the Box ===*/
