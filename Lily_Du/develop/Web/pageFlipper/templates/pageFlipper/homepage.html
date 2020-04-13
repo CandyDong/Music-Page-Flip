@@ -1,16 +1,21 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
-    <a href="{% url 'profile' %}"> Profile </a>
-    </br>
+<div class="content-wrapper">
+    {% if message %}
+        <div class="alert alert-danger" role="alert">
+            {{message}}
+        </div>
+    {% endif %}
+    <div class="alert alert-info" role="alert">
+        Click connect to be paired with an available PageFlipper.
+    </div>
+
     <form action="{% url 'connect-rpi' %}" method="post">
-        <button type="submit">
+        <button class="offset-sm-5 py-2 btn btn-light custom-btn" type="submit">
             Connect
         </button>
         {% csrf_token %}
     </form>
-    {% if message %}
-        <div>
-            {{message}}
-        </div>
-    {% endif %}
+    
+</div>
 {% endblock %}

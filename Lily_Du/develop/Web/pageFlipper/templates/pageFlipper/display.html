@@ -1,22 +1,26 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
-    <div id="ajax-refresh">
-        <div id="score-name" data="{{ score_name }}">
-            {{score_name}}
-        </div>
-        <div class="img-container">
-        	<img src=" {{score_path}} ">
-        </div>
-    </div>
-    <button class="flip_button" id="flip_button_b" type="submit">Prev</button>
-    <button class="flip_button" id="flip_button_f" type="submit">Next</button>
-
+<div class="content-wrapper">
     <form action="{% url 'disconnect-rpi' score_name %}" method="post">
-        <button type="submit">
+        <button class="col-sm-2 btn btn-success py-2" style="margin-bottom: 20px;" type="submit">
             End Session
         </button>
         {% csrf_token %}
     </form>
+
+    <div class="alert alert-warning">
+        Click End Session above when finished playing to release the PageFlipper resource.
+    </div>
+    <div class="alert alert-info" id="score-name" data="{{ score_name }}">
+        Running tracker program with {{score_name}}
+    </div>
+    <div id="ajax-refresh">
+        <div class="img-container">
+        	<img src=" {{score_path}} ">
+        </div>
+    </div>
+    <button class="btn btn-light flip_button custom-btn col-sm-1 py-2 offset-sm-1" id="flip_button_b" type="submit">Prev</button>
+    <button class="btn btn-light flip_button custom-btn col-sm-1 py-2 offset-sm-8" id="flip_button_f" type="submit">Next</button>
 
     <script type="text/javascript">  
     var score_name = $('#score-name').attr("data");
@@ -31,8 +35,6 @@
                             },
                             success: function (response) {
                                 $('#ajax-refresh').html(
-                                    "<div id='score-name' data=" + response.score_name +
-                                    ">" + response.score_name + 
                                     "</div><div class='img-container'>" +
                                     "<img src=" + response.path + "></div>");
                             }
@@ -68,8 +70,6 @@
                     dataType : "json",
                     success: function (response) {
                         $('#ajax-refresh').html(
-                        "<div id='score-name' data=" + response.score_name +
-                        ">" + response.score_name + 
                         "</div><div class='img-container'>" +
                         "<img src=" + response.path + "></div>");
                     }
@@ -78,6 +78,6 @@
     });
 
     </script>
-
+</div>
     
 {% endblock %}

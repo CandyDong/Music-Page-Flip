@@ -22,7 +22,6 @@ Last change : 2015/03/27
 html,
 body {
   background: 'white';
-  padding: 10px;
   font-family: 'Varela Round';
 }
 /*=== 2. Anchor Link ===*/
@@ -32,6 +31,7 @@ a {
 }
 a:hover {
   color: #333333;
+  cursor: pointer;
   text-decoration: none;
 }
 /*=== 3. Text Outside the Box ===*/
@@ -104,7 +104,7 @@ a:hover {
 }
 .login-form-1 .login-button:hover {
   color: #555555;
-  transform: rotate(450deg);
+  transform: rotate(-90deg);
 }
 .login-form-1 .login-button.clicked {
   color: #555555;
@@ -286,18 +286,17 @@ label:hover:before {
   font-weight: bold;
 }
 
-.pageTitle {
-  padding: 15px 0;
-  font-size: 28px;
-  color: black;
-  font-weight: bold;
+.navbar {
+  padding: 30px 50px 30px 50px;
 }
 
-.name {
-  padding: 15px 0;
-  font-size: 18px;
-  color: #aaaaaa;
-  font-weight: bold;
+.content-wrapper {
+  padding: 50px;
+}
+
+.custom-btn {
+  margin-top: 30px;
+  margin-bottom: 30px;
 }
 
 img {

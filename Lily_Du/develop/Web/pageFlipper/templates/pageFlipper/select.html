@@ -1,31 +1,75 @@
 {% extends "pageFlipper/base.html" %}
 {% block content %}
-    <form method='post' action='select-score'>
-        <select class="form-control" name='selected_score'>
-            {% for score in scores %}
-                <option value='{{score.scoreName}}'>{{ score.scoreName }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit">
-            Choose
-        </button>
-        {% csrf_token %}
-    </form>
-    <form enctype="multipart/form-data" action="{% url 'add-score' %}" method="post" class="add-form">
-        <div>{{form.pic}}</div>
-        <td class="error">
-            {% for error in form.pic.errors %} {{error}} {% endfor %}
-        </td>
-        <p>
-            <button id="id_update_pic_button">
-                Submit
-            </button>
-        </p>
-        {% csrf_token %}
-    </form>
+<div class="content-wrapper">
     {% if message %}
-        <div>
+        <div class="alert alert-danger" role="alert">
             {{message}}
         </div>
     {% endif %}
+    <div class="alert alert-info" role="alert">
+        Select from uploaded sheet music or upload a new sheet music to start.
+    </div>
+    <div id="accordion">
+        <div class="card">
+            <div class="card-header" id="headingOne">
+                <h5 class="mb-0">
+                <button class="btn btn-link" style="color: black;" data-toggle="collapse" data-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                  <label>Option 1: select from your previously uploaded sheet music</label>
+                </button>
+                </h5>
+            </div>
+            <div id="collapseOne" class="collapse show" aria-labelledby="headingOne" data-parent="#accordion">
+                <div class="card-body">
+                    <form method='post' action='select-score'>
+                        <select class="form-control mdb-select md-form" name='selected_score'>
+                            <option value="" disabled selected>Choose an uploaded sheet music</option>
+                            {% for score in scores %}
+                                <option value='{{score.scoreName}}'>{{ score.scoreName }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="offset-sm-5 py-2 btn btn-light custom-btn" type="submit">
+                            Choose
+                        </button>
+                        {% csrf_token %}
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header" id="headingTwo">
+                <h5 class="mb-0">
+                <button class="btn btn-link" style="color: black;" data-toggle="collapse" data-target="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
+                    <label>Option 2: upload a new sheet music</label>
+                </button>
+                </h5>
+            </div>
+            <div id="collapseTwo" class="collapse show" aria-labelledby="headingTwo" data-parent="#accordion">
+                <div class="card-body">
+                    <form enctype="multipart/form-data" action="{% url 'add-score' %}" method="post" class="add-form">
+                        <div class="col-sm-2 offset-sm-4">{{form.pic}}</div>
+                        <td class="error">
+                        {% for error in form.pic.errors %} 
+                            <div class="alert alert-danger" role="alert">
+                                {{error}} 
+                            </div>
+                        {% endfor %}
+                        </td>
+                        <p>
+                            <button class="offset-sm-5 py-2 btn btn-light custom-btn" id="id_update_pic_button">
+                            Submit
+                            </button>
+                        </p>
+                        {% csrf_token %}
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">  
+    $(document).ready(function() {
+    $('.mdb-select').materialSelect();
+    });
+</script>
 {% endblock %}

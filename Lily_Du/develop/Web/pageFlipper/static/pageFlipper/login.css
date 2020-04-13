@@ -104,7 +104,7 @@ a:hover {
 }
 .login-form-1 .login-button:hover {
   color: #555555;
-  transform: rotate(450deg);
+  transform: rotate(-90deg);
 }
 .login-form-1 .login-button.clicked {
   color: #555555;

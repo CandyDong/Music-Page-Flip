@@ -1,34 +1,45 @@
 <!doctype html>
 <html>
-    <head>
-        <meta charset="utf-8">
-        {% load static %}
-        <script src="https://code.jquery.com/jquery-3.1.1.min.js"
-                integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
-                crossorigin="anonymous">
-        </script>
-        <link href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-        <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
-        <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
-        <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
-        <link href='https://fonts.googleapis.com/css?family=Varela+Round' rel='stylesheet' type='text/css'>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.13.1/jquery.validate.min.js"></script>
-        <link href="{% static 'pageFlipper/base.css' %}" rel="stylesheet" type="text/css">
-        <link href="{% static 'pageFlipper/display.css' %}" rel="stylesheet" type="text/css">
-    </head>
-    <body>
-        <div class="pageTitle">
-            Music PageFlipper
-        </div>
-        <div class="name">
-            {{user.username}}
-        </div>
-        <form method="post" action="{% url 'logout' %}">
-            <button type="submit">Log out</button>
-            {% csrf_token %}
-        </form>
-
-        {% block content %}
-        {% endblock %}
-    </body>
+	<head>
+		<meta charset="utf-8">
+		{% load static %}
+		<script src="https://code.jquery.com/jquery-3.1.1.min.js"
+				integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+				crossorigin="anonymous">
+		</script>
+		<!-- Latest compiled and minified CSS -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
+		<!-- jQuery library -->
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+		<!-- Popper JS -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+		<!-- Latest compiled JavaScript -->
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+		
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+		
+		<link href='https://fonts.googleapis.com/css?family=Varela+Round' rel='stylesheet' type='text/css'>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.13.1/jquery.validate.min.js"></script>
+		<link href="{% static 'pageFlipper/base.css' %}" rel="stylesheet" type="text/css">
+		<link href="{% static 'pageFlipper/display.css' %}" rel="stylesheet" type="text/css">
+	</head>
+	<body>
+		<nav class="navbar navbar-expand-lg navbar-light bg-light">
+			<a class="navbar-brand" href="homepage">Music PageFlipper</a>
+			<div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+				<div class="navbar-nav">
+					<a class="nav-item nav-link" href="{% url 'profile' %}">{{user.username}}</a>
+				</div>
+			</div>
+			<form method="post" action="{% url 'logout' %}" class="form-inline my-2 my-lg-0">
+				<button class="btn btn-light my-2 my-sm-0" type="submit">Log out</button>
+				{% csrf_token %}
+			</form>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNavAltMarkup" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+		</nav>
+		{% block content %}
+		{% endblock %}
+	</body>
 </html>
