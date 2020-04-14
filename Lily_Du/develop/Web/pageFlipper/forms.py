@@ -3,7 +3,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 
-from pageFlipper.models import Score
+from pageFlipper.models import Score, RPI
 
 MAX_UPLOAD_SIZE = 2500000
 
@@ -87,3 +87,18 @@ class ScoreForm(forms.ModelForm):
                 pic.name.endswith('jpg')):
             raise forms.ValidationError('File type must be among .png, .jpeg, .jpg')
         return pic
+
+
+class RPIForm(forms.Form):
+    RPI_CHOICES = [(rpi.pk, rpi.name) 
+                    for i, rpi in enumerate(RPI.objects.filter(in_use=False))]
+    print("rpi_choices: {}".format(RPI_CHOICES))
+    rpi_choices = forms.CharField(widget=forms.RadioSelect(choices=RPI_CHOICES))
+
+
+
+
+
+
+
+

@@ -19,3 +19,5 @@ class Score(models.Model):
 class RPI(models.Model):
     in_use = models.BooleanField(default=False)
     user_profile = models.OneToOneField(Profile, on_delete=models.PROTECT, null=True, blank=True)
+    name = models.CharField(max_length=200, blank=True, null=True)
+    macAddr = models.CharField(max_length=100, blank=True, null=True)

@@ -12,7 +12,7 @@ from django.contrib.auth import authenticate, login, logout
 
 from django.utils import timezone
 
-from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm
+from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm, RPIForm
 from pageFlipper.models import Profile, Score, RPI
 
 from django.db.models.signals import post_save
@@ -52,7 +52,7 @@ def login_action(request):
         try:
             user_rpi = RPI.objects.get(user_profile=request.user.profile)
         except RPI.DoesNotExist:
-            return redirect(reverse('connect-rpi'))
+            return redirect(reverse('homepage'))
         return redirect(reverse('select'))
 
     # Just display the registration form if this is a GET request.
@@ -133,22 +133,16 @@ def register_action(request):
 
 @login_required
 def connect_rpi(request):
-    try:
-        user_rpi = RPI.objects.get(user_profile=request.user.profile)
-        return redirect(reverse('select'))
-    except RPI.DoesNotExist:
-        context = {}
-        available_rpis = RPI.objects.all().filter(in_use=False)
-        print("available rpi: {}".format(available_rpis))
-        if (len(available_rpis) > 0):
-            rpi_to_use = available_rpis.first()
-            print("rpi_to_use: {}".format(rpi_to_use))
-            rpi_to_use.in_use = True
-            rpi_to_use.user_profile = request.user.profile
-            rpi_to_use.save()
-            return redirect('select')
-        context['message'] = "All rpis are in use now, please try again later."
-    return render(request, 'pageFlipper/homepage.html', context)
+    if not request.method == "POST":
+        return HttpResponseBadRequest(u"Invalid Request") 
+    pk = request.POST["rpi_choices"]
+    print("pk: {}".format(pk))
+    context = {}
+    rpi_to_use = RPI.objects.all().get(pk=pk)
+    rpi_to_use.in_use = True
+    rpi_to_use.user_profile = request.user.profile
+    rpi_to_use.save()
+    return redirect('select')
 
 
 @login_required
@@ -171,7 +165,7 @@ def disconnect_rpi(request, score_name):
         score.save()
 
     # _send(END_SESSION, None)
-    return render(request, 'pageFlipper/homepage.html')
+    return redirect(reverse('homepage'))
 
 
 @login_required
@@ -336,10 +330,16 @@ def update_page(request):
 @login_required
 def homepage(request):
     context = {}
-    available_rpis = RPI.objects.all().filter(in_use=False)
-    if (len(available_rpis) == 0):
-        context["message"] = "No available PageFlipper for now. Please check back later."
-    
+    try:
+        user_rpi = RPI.objects.get(user_profile=request.user.profile)
+        return redirect(reverse('select'))
+    except RPI.DoesNotExist:
+        available_rpis = RPI.objects.filter(in_use=False)
+        unavailable_rpis = RPI.objects.filter(in_use=True)
+        if (len(available_rpis) == 0):
+            context["message"] = "No available PageFlipper for now. Please check back later."
+        context["unavailable_rpis"] = unavailable_rpis
+        context['form'] = RPIForm()
     return render(request, 'pageFlipper/homepage.html', context)
 
 @login_required

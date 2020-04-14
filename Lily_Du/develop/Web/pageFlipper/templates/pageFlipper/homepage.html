@@ -11,6 +11,21 @@
     </div>
 
     <form action="{% url 'connect-rpi' %}" method="post">
+        <div class="row">
+            {% for choice in form.rpi_choices %}
+            <label class="col-sm-4">
+                <label for='{{ form.rpi_choices.auto_id }}_{{ forloop.counter0 }}'></label>
+                <input class="card-input-element d-none" name="{{ form.rpi_choices.name }}" 
+                 id="{{ form.rpi_choices.auto_id }}_{{ forloop.counter0 }} " type="radio" value="{{ choice.data.value }}"/>
+                
+                <div class="card card-body bg-light d-flex flex-row justify-content-between align-items-center">
+                {{ choice.data.label }}
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+
+        <br/>
         <button class="offset-sm-5 py-2 btn btn-light custom-btn" type="submit">
             Connect
         </button>
