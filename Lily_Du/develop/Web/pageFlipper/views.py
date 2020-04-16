@@ -397,11 +397,11 @@ def _readTitle(inputImg):
             cv2.drawContours(mask, [c], -1, 0, -1)
 
     filename = "{}.png".format(os.getpid())
-    cv2.imwrite(filename, mask)
+    cv2.imwrite(os.path.join(settings.MEDIA_ROOT, filename), mask)
     # load the image as a PIL/Pillow image, apply OCR, and then delete
     # the temporary file
-    text = pytesseract.image_to_string(PIL.Image.open(filename))
-    os.remove(filename)
+    text = pytesseract.image_to_string(PIL.Image.open(os.path.join(settings.MEDIA_ROOT, filename)))
+    os.remove(os.path.join(settings.MEDIA_ROOT, filename))
     # show the output images
     # cv2.imwrite("Image.png", image)
     # cv2.imwrite("Output.png", gray)

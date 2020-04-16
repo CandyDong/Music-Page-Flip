@@ -94,6 +94,7 @@ class RPIForm(forms.Form):
                     for i, rpi in enumerate(RPI.objects.filter(in_use=False))]
     print("rpi_choices: {}".format(RPI_CHOICES))
     rpi_choices = forms.CharField(widget=forms.RadioSelect(choices=RPI_CHOICES))
+    
 
 
 
