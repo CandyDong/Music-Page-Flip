@@ -23,10 +23,10 @@ import ctypes
 import socket, requests
 
 HOST = "127.0.0.1"
-PORT = 65432
 
-TITLE = 0x01
-END_SESSION = 0x02
+# state macros
+SESSION_START = 1
+SESSION_END = 2
 
 FLIP_OFFSET = 10
 
@@ -459,7 +459,7 @@ class tracker_thread(threading.Thread):
 
 #################### TCP Requests #####################
 
-def make_post_request(title, flip_to):
+def make_flip_request(title, flip_to):
 	# defining the api-endpoint  
 	API_ENDPOINT = "http://{}:8000/pageFlipper/flip-page".format(HOST)
 
@@ -470,6 +470,14 @@ def make_post_request(title, flip_to):
 	  
 	# sending post request and saving response as response object 
 	r = requests.post(url = API_ENDPOINT, data = data)
+
+def make_state_request():
+	API_ENDPOINT = "http://{}:8000/pageFlipper/get-state".format(HOST)
+	# data to be sent to api 
+	data = {'userid': 1}
+	# sending post request and saving response as response object 
+	r = requests.post(url = API_ENDPOINT, data = data)
+	return r.json()
 
 
 # def send_reply(s, conn, code):
@@ -486,14 +494,6 @@ def main():
 	input_device = pygame.midi.Input(input_id)
 	print("midi input device connected: {}".format(pygame.midi.get_device_info(input_id)))
 
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	s.bind((HOST, PORT))
-	s.listen()
-	print("Waiting for Django server to connect.........")
-	conn, addr = s.accept()
-	print("Connected!")
-
 	# ############get command line arguments############
 	# opts = get_options()
 	# # Pretty print the run args
@@ -501,26 +501,44 @@ def main():
 	tracker = None
 	
 	while True:
-		msg = conn.recv(1024)
-		if not msg:
-			print("client disconnected.")
-			s.close()
-			sys.exit()
-		elif msg[0] == TITLE:
-			title = msg[1:].strip().decode('utf-8')
-			print("received title is : {}".format(title))
-			# start program
-			tracker = tracker_thread(title, input_device)
-			tracker.start()
-		elif msg[0] == END_SESSION:
-			print("resetting session.............")
+		time.sleep(2)
+		response = make_state_request()
+		print("state: {}, score_name: {}".format(response["state"], response["score_name"]))
+		if response["state"] == SESSION_START:
 			if (tracker == None):
-				print("session reset.")
+				title = response["score_name"]
+				print("received title is : {}".format(title))
+				tracker = tracker_thread(title, input_device)
+				tracker.start()
+		else:
+			if (tracker == None):
 				continue
 			tracker.reset.set()
 			tracker.join()
 			tracker.reset.clear()
+			tracker = None
 			print("session reset.")
+
+		# msg = conn.recv(1024)
+		# if not msg:
+		# 	print("client disconnected.")
+		# 	s.close()
+		# 	sys.exit()
+		# elif msg[0] == TITLE:
+		# 	title = msg[1:].strip().decode('utf-8')
+		# 	print("received title is : {}".format(title))
+		# 	# start program
+		# 	tracker = tracker_thread(title, input_device)
+		# 	tracker.start()
+		# elif msg[0] == END_SESSION:
+		# 	print("resetting session.............")
+		# 	if (tracker == None):
+		# 		print("session reset.")
+		# 		continue
+		# 	tracker.reset.set()
+		# 	tracker.join()
+		# 	tracker.reset.clear()
+		# 	print("session reset.")
 		
 
 

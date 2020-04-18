@@ -13,7 +13,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.utils import timezone
 
 from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm, RPIForm
-from pageFlipper.models import Profile, Score, RPI
+from pageFlipper.models import Profile, Score, RPI, FlipSession
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -34,16 +34,13 @@ import pytesseract
 from fuzzywuzzy import fuzz
 import PIL
 import socket
+import pickle
 
-TITLE = 0x01
-END_SESSION = 0x02
-REPLY = 0x03
+# state macros
+SESSION_START = 1
+SESSION_END = 2
 
-HOST = "127.0.0.1"
-PORT = 65432
-# S = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# S.connect((HOST, PORT))
-
+DEBUG = True
 
 def login_action(request):
     context = {}
@@ -73,9 +70,11 @@ def login_action(request):
                             password=form.cleaned_data['password'])
 
     login(request, new_user)
-
-    # if user is already linked to a rpi, jump to the session page
     user_profile = request.user.profile
+    flipSession = FlipSession(user_profile=user_profile)
+    flipSession.save()
+    if DEBUG: print("session: {}".format(flipSession))
+
     try:
         user_rpi = RPI.objects.get(user_profile=user_profile)
     except RPI.DoesNotExist:
@@ -92,9 +91,14 @@ def logout_action(request):
         user_rpi.user_profile = None
         user_rpi.in_use = False
         user_rpi.save()
-        # _send(END_SESSION, None)
+        
     except RPI.DoesNotExist:
         pass
+
+    flipSession = FlipSession.objects.get(user_profile=user_profile)
+    if DEBUG: print("session: {} deleted.".format(flipSession))
+    flipSession.delete()
+
     logout(request)
     return redirect(reverse('login'))
 
@@ -136,12 +140,12 @@ def connect_rpi(request):
     if not request.method == "POST":
         return HttpResponseBadRequest(u"Invalid Request") 
     pk = request.POST["rpi_choices"]
-    print("pk: {}".format(pk))
     context = {}
     rpi_to_use = RPI.objects.all().get(pk=pk)
     rpi_to_use.in_use = True
     rpi_to_use.user_profile = request.user.profile
     rpi_to_use.save()
+
     return redirect('select')
 
 
@@ -164,7 +168,12 @@ def disconnect_rpi(request, score_name):
                                     score_name, score_name+"_1.png")
         score.save()
 
-    # _send(END_SESSION, None)
+    flipSession = FlipSession.objects.get(user_profile=request.user.profile)
+    flipSession.state = SESSION_END
+    flipSession.score = None
+    flipSession.save()
+    if DEBUG: print("session: {}".format(flipSession))
+
     return redirect(reverse('homepage'))
 
 
@@ -182,7 +191,6 @@ def select_score(request):
     score.path = score_path
     score.save()
 
-    # _send(TITLE, score_name)
     base_url = reverse('display')  
     query_string =  urlencode({"score_name": score_name, \
                                 "page": 1})  
@@ -200,6 +208,12 @@ def select_page(request):
     context = {}
     context['scores'] = request.user.profile.score_set.all()
     context['form'] = ScoreForm()
+
+    flipSession = FlipSession.objects.get(user_profile=request.user.profile)
+    flipSession.state = None
+    flipSession.save()
+    if DEBUG: print("session: {}".format(flipSession))
+
     return render(request, 'pageFlipper/select.html', context)
 
 @login_required
@@ -229,7 +243,6 @@ def add_score(request):
                             Please select it from the dropdown box."
         return render(request, 'pageFlipper/select.html', context)
 
-    # _send(TITLE, title)
 
     new_score.scoreName = title
     new_score.pic.delete()
@@ -243,6 +256,7 @@ def add_score(request):
         new_score.save()
     
     request.user.profile.score_set.add(new_score)
+
     base_url = reverse('display')  
     query_string =  urlencode({"score_name": new_score.scoreName, \
                                 "page": 1})  
@@ -259,6 +273,13 @@ def display_page(request):
     score_name = request.GET.get("score_name")
     page = request.GET.get("page")
     score = Score.objects.get(scoreName=score_name)
+
+    flipSession = FlipSession.objects.get(user_profile=request.user.profile)
+    flipSession.state = SESSION_START
+    flipSession.score_name = score_name
+    flipSession.save()
+    if DEBUG: print("session: {}".format(flipSession))
+
     return render(request, 'pageFlipper/display.html', \
                         {"score_name": score.scoreName, "score_path": score.path})
 
@@ -284,6 +305,21 @@ def flip_page(request):
                                 "page": int(flip_to)})
     url = '{}?{}'.format(base_url, query_string) 
     return redirect(url)
+
+@csrf_exempt
+def get_state(request):
+    if request.method != "POST":
+        return HttpResponseBadRequest(u"Invalid Request")
+    userid = request.POST.get("userid")
+    user = User.objects.get(pk=userid)
+    user_profile = user.profile
+    try:
+        flipSession = FlipSession.objects.get(user_profile=user_profile)
+    except FlipSession.DoesNotExist:
+        return JsonResponse({"state":None, \
+                        "score_name": None})
+    return JsonResponse({"state":flipSession.state, \
+                        "score_name": flipSession.score_name})
 
 @login_required
 def button_flip(request):
@@ -340,6 +376,12 @@ def homepage(request):
             context["message"] = "No available PageFlipper for now. Please check back later."
         context["unavailable_rpis"] = unavailable_rpis
         context['form'] = RPIForm()
+
+    flipSession = FlipSession.objects.get(user_profile=request.user.profile)
+    flipSession.state = None
+    flipSession.save()
+    if DEBUG: print("session: {}".format(flipSession))
+
     return render(request, 'pageFlipper/homepage.html', context)
 
 @login_required
@@ -347,6 +389,7 @@ def profile(request):
     context = {}
     context['scores'] = request.user.profile.score_set.all()
     return render(request, 'pageFlipper/profile.html', context)
+
 
 def _readTitle(inputImg):
     image = cv2.imread(inputImg)
@@ -448,24 +491,6 @@ def _getTitle():
     return score_title
 
 
-
-###########TCP communication with the tracker program################
-def _send(content_id, content):
-    global S   
-    msg = bytearray()
-    msg.append(content_id)
-    if content_id != END_SESSION:
-        msg += content.encode('utf-8')
-    S.sendall(msg)
-    # while True:
-    #     reply = S.recv(1024)
-    #     if reply[0] == REPLY:
-    #         if reply[1] == 1:
-    #             print("SUCCESS")
-    #         else:
-    #             print("ERROR")
-    #         return
-
 ##########Title Recognition Utils##################
 
 def _readTitle(inputImg):
@@ -517,11 +542,12 @@ def _readTitle(inputImg):
             cv2.drawContours(mask, [c], -1, 0, -1)
 
     filename = "{}.png".format(os.getpid())
-    cv2.imwrite(filename, mask)
+    cv2.imwrite(os.path.join(settings.MEDIA_ROOT, filename), mask)
     # load the image as a PIL/Pillow image, apply OCR, and then delete
     # the temporary file
-    text = pytesseract.image_to_string(PIL.Image.open(filename))
-    os.remove(filename)
+    text = pytesseract.image_to_string(PIL.Image.open(os.path.join(settings.MEDIA_ROOT, filename)))
+    os.remove(os.path.join(settings.MEDIA_ROOT, filename))
+    print("temporary file at {} removed.".format(os.path.join(settings.MEDIA_ROOT, filename)))
     # show the output images
     # cv2.imwrite("Image.png", image)
     # cv2.imwrite("Output.png", gray)

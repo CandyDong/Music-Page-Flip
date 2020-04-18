@@ -21,3 +21,13 @@ class RPI(models.Model):
     user_profile = models.OneToOneField(Profile, on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200, blank=True, null=True)
     macAddr = models.CharField(max_length=100, blank=True, null=True)
+
+class FlipSession(models.Model):
+    user_profile = models.ForeignKey(Profile, on_delete=models.CASCADE, null=True, blank=True)
+    state = models.IntegerField(null=True, blank=True)
+    score_name = models.CharField(max_length=50, null=True, blank=True)
+
+    def __str__(self):
+        return "username={}, state={}, score={}".\
+                format(self.user_profile.user.username,
+                    self.state, self.score_name)
