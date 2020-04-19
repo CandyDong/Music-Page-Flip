@@ -12,7 +12,7 @@ from django.contrib.auth import authenticate, login, logout
 
 from django.utils import timezone
 
-from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm, RPIForm
+from pageFlipper.forms import LoginForm, RegistrationForm, ScoreForm
 from pageFlipper.models import Profile, Score, RPI, FlipSession
 
 from django.db.models.signals import post_save
@@ -71,9 +71,6 @@ def login_action(request):
 
     login(request, new_user)
     user_profile = request.user.profile
-    flipSession = FlipSession(user_profile=user_profile)
-    flipSession.save()
-    if DEBUG: print("session: {}".format(flipSession))
 
     try:
         user_rpi = RPI.objects.get(user_profile=user_profile)
@@ -94,10 +91,6 @@ def logout_action(request):
         
     except RPI.DoesNotExist:
         pass
-
-    flipSession = FlipSession.objects.get(user_profile=user_profile)
-    if DEBUG: print("session: {} deleted.".format(flipSession))
-    flipSession.delete()
 
     logout(request)
     return redirect(reverse('login'))
@@ -126,6 +119,8 @@ def register_action(request):
     new_user.save()
     new_profile = Profile.objects.create(user=new_user)
     new_profile.save()
+    flipSession = FlipSession.objects.create(user_profile=new_profile)
+    flipSession.save()
 
     new_user = authenticate(username=form.cleaned_data['username'],
                             password=form.cleaned_data['password'])
@@ -139,12 +134,21 @@ def register_action(request):
 def connect_rpi(request):
     if not request.method == "POST":
         return HttpResponseBadRequest(u"Invalid Request") 
-    pk = request.POST["rpi_choices"]
-    context = {}
-    rpi_to_use = RPI.objects.all().get(pk=pk)
+
+    available_rpis = RPI.objects.filter(in_use=False)
+    if (len(available_rpis) == 0):
+        return redirect(Reverse('homepage'))
+    rpi_to_use = available_rpis.first()
     rpi_to_use.in_use = True
     rpi_to_use.user_profile = request.user.profile
     rpi_to_use.save()
+
+    # pk = request.POST["rpi_choices"]
+    # context = {}
+    # rpi_to_use = RPI.objects.all().get(pk=pk)
+    # rpi_to_use.in_use = True
+    # rpi_to_use.user_profile = request.user.profile
+    # rpi_to_use.save()
 
     return redirect('select')
 
@@ -207,6 +211,7 @@ def select_page(request):
 
     context = {}
     context['scores'] = request.user.profile.score_set.all()
+    print("scores: {}".format(context['scores']))
     context['form'] = ScoreForm()
 
     flipSession = FlipSession.objects.get(user_profile=request.user.profile)
@@ -371,11 +376,11 @@ def homepage(request):
         return redirect(reverse('select'))
     except RPI.DoesNotExist:
         available_rpis = RPI.objects.filter(in_use=False)
-        unavailable_rpis = RPI.objects.filter(in_use=True)
+        # unavailable_rpis = RPI.objects.filter(in_use=True)
         if (len(available_rpis) == 0):
             context["message"] = "No available PageFlipper for now. Please check back later."
-        context["unavailable_rpis"] = unavailable_rpis
-        context['form'] = RPIForm()
+        # context["unavailable_rpis"] = unavailable_rpis
+        # context['form'] = RPIForm()
 
     flipSession = FlipSession.objects.get(user_profile=request.user.profile)
     flipSession.state = None
