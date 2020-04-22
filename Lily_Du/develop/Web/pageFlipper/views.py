@@ -240,27 +240,37 @@ def add_score(request):
     title = _getTitle()
     print("recognized sheet music title is: {}".format(title))
 
-    old_scores = Score.objects.all().filter(scoreName=title)
-    if len(old_scores) > 0:
+    old_scores = Score.objects.all().filter(user_profiles=request.user.profile, scoreName=title)
+    if (len(old_scores) > 0):
         context['form'] = form
         context['scores'] = request.user.profile.score_set.all()
         context["message"] = "Score with same name has already been uploaded. \
                             Please select it from the dropdown box."
         return render(request, 'pageFlipper/select.html', context)
 
-
-    new_score.scoreName = title
-    new_score.pic.delete()
-    with open(os.path.join("pageFlipper", settings.MEDIA_URL, \
-                            title, title+"_1.png"), \
-                            encoding = "ISO-8859-1") as f:
-        wrapped_file = File(f)
-        new_score.pic = wrapped_file
-        new_score.path = os.path.join(settings.MEDIA_URL, \
-                                    title, title+"_1.png")
-        new_score.save()
-    
-    request.user.profile.score_set.add(new_score)
+    try:
+        same_score = Score.objects.get(scoreName=title)
+        same_score.user_profiles.add(request.user.profile)
+        request.user.profile.score_set.add(same_score)
+        same_score.save()
+        new_score.delete()
+        base_url = reverse('display')  
+        query_string =  urlencode({"score_name": same_score.scoreName, \
+                                    "page": 1})  
+        url = '{}?{}'.format(base_url, query_string) 
+        return redirect(url)
+    except Score.DoesNotExist:
+        new_score.scoreName = title
+        new_score.pic.delete()
+        with open(os.path.join("pageFlipper", settings.MEDIA_URL, \
+                                title, title+"_1.png"), \
+                                encoding = "ISO-8859-1") as f:
+            wrapped_file = File(f)
+            new_score.pic = wrapped_file
+            new_score.path = os.path.join(settings.MEDIA_URL, \
+                                        title, title+"_1.png")
+            new_score.save()
+        request.user.profile.score_set.add(new_score)
 
     base_url = reverse('display')  
     query_string =  urlencode({"score_name": new_score.scoreName, \
@@ -315,9 +325,12 @@ def flip_page(request):
 def get_state(request):
     if request.method != "POST":
         return HttpResponseBadRequest(u"Invalid Request")
-    userid = request.POST.get("userid")
-    user = User.objects.get(pk=userid)
-    user_profile = user.profile
+    # userid = request.POST.get("userid")
+    # user = User.objects.get(pk=userid)
+    # user_profile = user.profile
+    rpi_in_use = RPI.objects.filter(in_use=True)
+    user_profile = rpi_in_use.user_profile
+
     try:
         flipSession = FlipSession.objects.get(user_profile=user_profile)
     except FlipSession.DoesNotExist:
