@@ -328,7 +328,11 @@ def get_state(request):
     # userid = request.POST.get("userid")
     # user = User.objects.get(pk=userid)
     # user_profile = user.profile
-    rpi_in_use = RPI.objects.filter(in_use=True)
+    try:
+        rpi_in_use = RPI.objects.get(in_use=True)
+    except DoesNotExist:
+        return JsonResponse({"state":None, \
+                        "score_name": None})
     user_profile = rpi_in_use.user_profile
 
     try:
